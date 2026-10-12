@@ -18,6 +18,7 @@ Metrics Tracked:
 - Over-smoothing Drop (%) as hop distance expands from 2 to 6
 """
 
+import gc
 import time
 from typing import Tuple
 import numpy as np
@@ -167,9 +168,8 @@ def train_and_eval_gcn(
     np.fill_diagonal(adj, 1.0)
     
     deg = np.sum(adj, axis=1)
-    inv_sqrt_deg = 1.0 / np.sqrt(deg)
-    d_inv = np.diag(inv_sqrt_deg)
-    norm_adj = d_inv @ adj @ d_inv
+    inv_sqrt_deg = np.where(deg > 0, 1.0 / np.sqrt(deg), 0.0)
+    norm_adj = inv_sqrt_deg[:, None] * adj * inv_sqrt_deg[None, :]
     
     x_tensor = torch.tensor(features, dtype=torch.float32)
     norm_adj_tensor = torch.tensor(norm_adj, dtype=torch.float32)
@@ -212,6 +212,9 @@ def train_and_eval_gcn(
         fpr_val = float(1.0 - prec_at_95)
     else:
         fpr_val = 1.0
+
+    del x_tensor, norm_adj_tensor, y_tensor, model, optimizer, norm_adj, adj
+    gc.collect()
         
     return pr_auc_val, f1_val, fpr_val
 

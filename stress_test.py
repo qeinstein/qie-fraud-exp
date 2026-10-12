@@ -22,6 +22,7 @@ Exponentially More Difficult Adversarial Scenarios:
     and diffuse off-ramps under heavy ambient noise.
 """
 
+import gc
 import time
 from typing import Tuple
 import numpy as np
@@ -84,8 +85,8 @@ def generate_stress_graph(
 
     for g_idx in range(num_subgraphs):
         is_illicit = (np.random.rand() < illicit_prob)
-        # Guarantee at least 1 illicit ring in the graph to avoid degenerate zero-positive splits
-        if guarantee_illicit and g_idx == (num_subgraphs - 1) and illicit_spawned == 0:
+        # Guarantee at least 2 illicit rings in the graph to avoid degenerate zero-positive splits
+        if guarantee_illicit and g_idx >= (num_subgraphs - 2) and illicit_spawned < 2:
             is_illicit = True
 
         if is_illicit:
@@ -349,7 +350,7 @@ def eval_gcn(
     np.fill_diagonal(adj, 1.0)
     deg = np.sum(adj, axis=1)
     inv_sqrt = np.where(deg > 0, 1.0 / np.sqrt(deg), 0.0)
-    norm_adj = np.diag(inv_sqrt) @ adj @ np.diag(inv_sqrt)
+    norm_adj = inv_sqrt[:, None] * adj * inv_sqrt[None, :]
 
     x = torch.tensor(features, dtype=torch.float32)
     a = torch.tensor(norm_adj, dtype=torch.float32)
@@ -382,6 +383,10 @@ def eval_gcn(
         probs = F.softmax(model(x, a), dim=1)[:, 1].numpy()
     elapsed = time.time() - t0
     pr_auc, f1 = eval_metrics(labels[test_mask], probs[test_mask])
+
+    del x, a, y, model, opt, norm_adj, adj
+    gc.collect()
+
     return pr_auc, f1, elapsed
 
 
@@ -447,14 +452,27 @@ def run_stress_tests():
             )
 
             n = data["num_nodes"]
-            idx = np.arange(n)
+            labels = data["labels"]
+            pos_idx = np.where(labels == 1)[0]
+            neg_idx = np.where(labels == 0)[0]
             np.random.seed(99)
-            np.random.shuffle(idx)
-            split = int(0.65 * n)
+            np.random.shuffle(pos_idx)
+            np.random.shuffle(neg_idx)
+
+            if len(pos_idx) >= 2:
+                n_pos_train = max(1, min(len(pos_idx) - 1, int(round(0.65 * len(pos_idx)))))
+            else:
+                n_pos_train = len(pos_idx)
+
+            n_neg_train = int(round(0.65 * len(neg_idx)))
+
+            train_idx = np.concatenate([pos_idx[:n_pos_train], neg_idx[:n_neg_train]])
+            test_idx = np.concatenate([pos_idx[n_pos_train:], neg_idx[n_neg_train:]])
+
             train_mask = np.zeros(n, dtype=bool)
             test_mask = np.zeros(n, dtype=bool)
-            train_mask[idx[:split]] = True
-            test_mask[idx[split:]] = True
+            train_mask[train_idx] = True
+            test_mask[test_idx] = True
 
             print(f"{log_pfx} (1/3) Evaluating Tabular Baseline (GBDT)...", flush=True)
             tab_pr, tab_f1, tab_sec = eval_tabular(data["features"], data["labels"], train_mask, test_mask)
