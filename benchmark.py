@@ -26,7 +26,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from sklearn.metrics import precision_recall_curve, auc, f1_score
 from sklearn.ensemble import HistGradientBoostingClassifier
-from qia_engine import HQWAMLClassifier, extract_hqw_node_features
+from qia_engine import HQWAMLClassifier, extract_features
 
 
 def generate_synthetic_aml_graph(
