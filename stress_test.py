@@ -29,9 +29,12 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from sklearn.metrics import precision_recall_curve, auc, f1_score
 from sklearn.ensemble import HistGradientBoostingClassifier
 from qia_engine import HQWAMLClassifier
+from eval_utils import compute_metrics, groups_from_starts, group_split, structural_features
+
+
+MIN_ILLICIT_RINGS = 6
 
 
 def generate_stress_graph(
@@ -82,11 +85,14 @@ def generate_stress_graph(
         raise ValueError(f"Unknown scenario: {scenario}")
 
     illicit_spawned = 0
+    group_starts = []
 
     for g_idx in range(num_subgraphs):
+        group_starts.append(current_id)
         is_illicit = (np.random.rand() < illicit_prob)
-        # Guarantee at least 2 illicit rings in the graph to avoid degenerate zero-positive splits
-        if guarantee_illicit and g_idx >= (num_subgraphs - 2) and illicit_spawned < 2:
+        # Guarantee MIN_ILLICIT_RINGS rings so train and test both hold illicit groups
+        remaining = num_subgraphs - g_idx
+        if guarantee_illicit and illicit_spawned + remaining <= MIN_ILLICIT_RINGS:
             is_illicit = True
 
         if is_illicit:
@@ -259,8 +265,8 @@ def generate_stress_graph(
     # Ambient network cross-traffic
     if len(legit_ids) > 10:
         for _ in range(total):
-            u = np.random.choice(legit_ids)
-            v = np.random.choice(total)
+            u = np.random.randint(total)
+            v = np.random.randint(total)
             if u != v:
                 all_edges.append((u, v, float(np.random.uniform(5.0, 200.0))))
 
@@ -275,6 +281,7 @@ def generate_stress_graph(
         "edges": all_edges,
         "features": features,
         "labels": labels,
+        "groups": groups_from_starts(group_starts, total),
         "stats": {
             "total_nodes": total,
             "illicit_nodes": illicit_count,
@@ -303,45 +310,23 @@ class SimpleGCN(nn.Module):
         return x
 
 
-def eval_metrics(y_true: np.ndarray, y_prob: np.ndarray) -> Tuple[float, float]:
-    """Computes PR-AUC and F1-score for minority illicit class."""
-    if np.sum(y_true == 1) == 0:
-        return 0.0, 0.0
-    precision, recall, _ = precision_recall_curve(y_true, y_prob)
-    pr_auc = float(auc(recall, precision))
-    pred = (y_prob > 0.5).astype(int)
-    f1 = float(f1_score(y_true, pred, zero_division=0))
-    return pr_auc, f1
-
-
-def eval_tabular(
-    features: np.ndarray,
-    labels: np.ndarray,
-    train_mask: np.ndarray,
-    test_mask: np.ndarray
-) -> Tuple[float, float, float]:
-    """Evaluates Tabular GBDT baseline with duration timing."""
-    t0 = time.time()
+def eval_tabular(features, labels, train_mask, test_mask):
+    """GBDT on raw node features only."""
     clf = HistGradientBoostingClassifier(max_iter=100, class_weight="balanced", random_state=42)
     clf.fit(features[train_mask], labels[train_mask])
-    probs = clf.predict_proba(features[test_mask])[:, 1]
-    elapsed = time.time() - t0
-    pr_auc, f1 = eval_metrics(labels[test_mask], probs)
-    return pr_auc, f1, elapsed
+    return compute_metrics(labels[test_mask], clf.predict_proba(features[test_mask])[:, 1])
 
 
-def eval_gcn(
-    num_nodes: int,
-    edges: list,
-    features: np.ndarray,
-    labels: np.ndarray,
-    num_layers: int,
-    train_mask: np.ndarray,
-    test_mask: np.ndarray,
-    log_prefix: str = ""
-) -> Tuple[float, float, float]:
-    """Trains and evaluates Classical GCN with periodic epoch logging."""
-    t0 = time.time()
+def eval_structural(num_nodes, edges, features, labels, train_mask, test_mask):
+    """GBDT on raw features + classical graph statistics (degree, flow imbalance, 2-hop reach...)."""
+    X = np.hstack([features, structural_features(num_nodes, edges)])
+    clf = HistGradientBoostingClassifier(max_iter=100, class_weight="balanced", random_state=42)
+    clf.fit(X[train_mask], labels[train_mask])
+    return compute_metrics(labels[test_mask], clf.predict_proba(X[test_mask])[:, 1])
+
+
+def eval_gcn(num_nodes, edges, features, labels, num_layers, train_mask, test_mask):
+    """Classical GCN trained on the train mask, scored on the held-out groups."""
     adj = np.zeros((num_nodes, num_nodes), dtype=np.float32)
     for u, v, _ in edges:
         if 0 <= u < num_nodes and 0 <= v < num_nodes:
@@ -356,167 +341,105 @@ def eval_gcn(
     a = torch.tensor(norm_adj, dtype=torch.float32)
     y = torch.tensor(labels, dtype=torch.long)
 
+    torch.manual_seed(0)
     model = SimpleGCN(features.shape[1], 32, 2, max(num_layers, 2))
     pos = max(int(np.sum(labels[train_mask] == 1)), 1)
     neg = max(int(np.sum(labels[train_mask] == 0)), 1)
-    weight = torch.tensor([1.0, float(neg / pos)])
-    criterion = nn.CrossEntropyLoss(weight=weight)
+    criterion = nn.CrossEntropyLoss(weight=torch.tensor([1.0, float(neg / pos)]))
     opt = torch.optim.Adam(model.parameters(), lr=0.01, weight_decay=1e-4)
 
-    total_epochs = 100
     model.train()
-    for epoch in range(1, total_epochs + 1):
+    for _ in range(100):
         opt.zero_grad()
-        out = model(x, a)
-        loss = criterion(out[train_mask], y[train_mask])
+        loss = criterion(model(x, a)[train_mask], y[train_mask])
         loss.backward()
         opt.step()
-
-        if epoch in (25, 50, 75, 100):
-            print(
-                f"{log_prefix}    ... GCN training epoch {epoch}/{total_epochs} (loss={loss.item():.4f})",
-                flush=True
-            )
 
     model.eval()
     with torch.no_grad():
         probs = F.softmax(model(x, a), dim=1)[:, 1].numpy()
-    elapsed = time.time() - t0
-    pr_auc, f1 = eval_metrics(labels[test_mask], probs[test_mask])
 
     del x, a, y, model, opt, norm_adj, adj
     gc.collect()
+    return compute_metrics(labels[test_mask], probs[test_mask])
 
-    return pr_auc, f1, elapsed
 
-
-def eval_hqw(
-    num_nodes: int,
-    edges: list,
-    features: np.ndarray,
-    labels: np.ndarray,
-    train_mask: np.ndarray,
-    test_mask: np.ndarray,
-    log_prefix: str = ""
-) -> Tuple[float, float, float]:
-    """Evaluates HQW-AML v3 engine with flow-imbalance potential wells and local interference contrast."""
-    t0 = time.time()
-    print(f"{log_prefix}    ... HQW-AML v3: constructing Hamiltonian & spectral decomposition", flush=True)
-    clf = HQWAMLClassifier(max_iter=100, random_state=42)
+def eval_hqw(num_nodes, edges, features, labels, train_mask, test_mask, **engine_kwargs):
+    """HQW-AML; engine_kwargs enable ablations (gamma=0, flow_potential_weight=0)."""
+    clf = HQWAMLClassifier(max_iter=100, random_state=42, **engine_kwargs)
     clf.fit(num_nodes, edges, features, labels, train_mask=train_mask)
-    print(f"{log_prefix}    ... HQW-AML v3: evaluating inference & probability scoring", flush=True)
     probs = clf.predict_proba(num_nodes, edges, features, eval_mask=test_mask)[:, 1]
-    elapsed = time.time() - t0
-    pr_auc, f1 = eval_metrics(labels[test_mask], probs)
-    return pr_auc, f1, elapsed
+    return compute_metrics(labels[test_mask], probs)
 
 
-def run_stress_tests():
-    """Runs the full stress testing suite across all 7 scenarios."""
+MODELS = [
+    ("Tabular (raw features)", "tab"),
+    ("Tabular + structural stats", "struct"),
+    ("Classical GCN", "gcn"),
+    ("HQW-AML v3 (full)", "hqw"),
+    ("HQW ablation: gamma=0 (no chirality)", "hqw_g0"),
+    ("HQW ablation: no potential wells", "hqw_nowell"),
+]
+
+
+def run_all_models(data, depth, train_mask, test_mask):
+    n, e, f, y = data["num_nodes"], data["edges"], data["features"], data["labels"]
+    return {
+        "tab": eval_tabular(f, y, train_mask, test_mask),
+        "struct": eval_structural(n, e, f, y, train_mask, test_mask),
+        "gcn": eval_gcn(n, e, f, y, depth, train_mask, test_mask),
+        "hqw": eval_hqw(n, e, f, y, train_mask, test_mask),
+        "hqw_g0": eval_hqw(n, e, f, y, train_mask, test_mask, gamma=0.0),
+        "hqw_nowell": eval_hqw(n, e, f, y, train_mask, test_mask,
+                               flow_potential_weight=0.0, feature_potential_weight=0.0),
+    }
+
+
+def run_stress_tests(seeds=(0, 1, 2)):
+    """Runs all 7 scenarios x 3 depths x len(seeds) graph draws; reports mean +/- std PR-AUC."""
     scenarios = [
         ("invisible_mules",              "A: Invisible Mules (identical feature distributions)"),
         ("camouflaged_rings",            "B: Camouflaged Rings (bilateral legitimate cover traffic)"),
         ("needle_haystack",              "C: Needle in Haystack (extreme imbalance in large clusters)"),
         ("kitchen_sink",                 "D: Kitchen Sink (all baseline stress vectors combined)"),
         ("cyclic_smurfing",              "E: Cyclic Wash Smurfing & Multi-Exit Splinters"),
-        ("superhub_ghost_swarm",         "F: Ghost Swarm & Commercial Super-Hub Infiltration (<0.2% imbalance)"),
-        ("temporal_mimicry_splinters",    "G: Temporal Mimicry & Splinter Layering (spoofed profiles)"),
+        ("superhub_ghost_swarm",         "F: Ghost Swarm & Commercial Super-Hub Infiltration"),
+        ("temporal_mimicry_splinters",   "G: Temporal Mimicry & Splinter Layering (spoofed profiles)"),
     ]
     depths = [2, 4, 6]
-    total_evals = len(scenarios) * len(depths)
-    current_eval = 0
-
     suite_start = time.time()
-    print("HQW-AML v3 Expanded Adversarial Stress Test Suite", flush=True)
-    print(f"Total workload: {len(scenarios)} scenarios x {len(depths)} hop depths = {total_evals} test runs\n", flush=True)
+    print("HQW-AML v3 Adversarial Stress Test Suite (group-level split, multi-seed, ablations)", flush=True)
+    print(f"{len(scenarios)} scenarios x {len(depths)} depths x {len(seeds)} seeds\n", flush=True)
 
-    summary_tables = {}
-
-    for s_idx, (scenario_key, scenario_name) in enumerate(scenarios, start=1):
-        print(f"[{s_idx}/{len(scenarios)}] SCENARIO: {scenario_name}", flush=True)
-        scenario_results = {}
-
+    all_results = {}
+    for s_idx, (key, name) in enumerate(scenarios, start=1):
+        print(f"[{s_idx}/{len(scenarios)}] SCENARIO: {name}", flush=True)
+        per_depth = {}
         for depth in depths:
-            current_eval += 1
-            eval_start = time.time()
-            log_pfx = f"  [{current_eval}/{total_evals}]"
-            remaining = total_evals - current_eval
+            runs = []
+            for seed in seeds:
+                data = generate_stress_graph(key, hop_depth=depth, seed=1000 * seed + 42 + depth)
+                train_mask, test_mask = group_split(data["groups"], data["labels"], 0.65, seed=99 + seed)
+                st = data["stats"]
+                print(f"  depth={depth} seed={seed}: {st['total_nodes']} nodes, {st['total_edges']} edges, "
+                      f"{st['illicit_nodes']} illicit ({st['illicit_pct']}%), "
+                      f"test illicit={int(data['labels'][test_mask].sum())}", flush=True)
+                runs.append(run_all_models(data, depth, train_mask, test_mask))
+            per_depth[depth] = runs
+        all_results[key] = per_depth
 
-            print(f"\n{log_pfx} Generating graph for {depth}-hop layering (scenario: {scenario_key})...", flush=True)
-            data = generate_stress_graph(scenario_key, hop_depth=depth, seed=42 + depth)
-            stats = data["stats"]
-            print(
-                f"{log_pfx} Graph constructed: {stats['total_nodes']} nodes, {stats['total_edges']} edges | "
-                f"Illicit: {stats['illicit_nodes']} ({stats['illicit_pct']}%)",
-                flush=True
-            )
-
-            n = data["num_nodes"]
-            labels = data["labels"]
-            pos_idx = np.where(labels == 1)[0]
-            neg_idx = np.where(labels == 0)[0]
-            np.random.seed(99)
-            np.random.shuffle(pos_idx)
-            np.random.shuffle(neg_idx)
-
-            if len(pos_idx) >= 2:
-                n_pos_train = max(1, min(len(pos_idx) - 1, int(round(0.65 * len(pos_idx)))))
-            else:
-                n_pos_train = len(pos_idx)
-
-            n_neg_train = int(round(0.65 * len(neg_idx)))
-
-            train_idx = np.concatenate([pos_idx[:n_pos_train], neg_idx[:n_neg_train]])
-            test_idx = np.concatenate([pos_idx[n_pos_train:], neg_idx[n_neg_train:]])
-
-            train_mask = np.zeros(n, dtype=bool)
-            test_mask = np.zeros(n, dtype=bool)
-            train_mask[train_idx] = True
-            test_mask[test_idx] = True
-
-            print(f"{log_pfx} (1/3) Evaluating Tabular Baseline (GBDT)...", flush=True)
-            tab_pr, tab_f1, tab_sec = eval_tabular(data["features"], data["labels"], train_mask, test_mask)
-            print(f"{log_pfx}       Done in {tab_sec:.2f}s -> PR-AUC: {tab_pr:.4f}, F1: {tab_f1:.4f}", flush=True)
-
-            print(f"{log_pfx} (2/3) Evaluating Classical GCN ({depth} layers)...", flush=True)
-            gcn_pr, gcn_f1, gcn_sec = eval_gcn(
-                n, data["edges"], data["features"], data["labels"],
-                depth, train_mask, test_mask, log_prefix=log_pfx
-            )
-            print(f"{log_pfx}       Done in {gcn_sec:.2f}s -> PR-AUC: {gcn_pr:.4f}, F1: {gcn_f1:.4f}", flush=True)
-
-            print(f"{log_pfx} (3/3) Evaluating HQW-AML v3 (Quantum-Inspired Engine)...", flush=True)
-            hqw_pr, hqw_f1, hqw_sec = eval_hqw(
-                n, data["edges"], data["features"], data["labels"],
-                train_mask, test_mask, log_prefix=log_pfx
-            )
-            print(f"{log_pfx}       Done in {hqw_sec:.2f}s -> PR-AUC: {hqw_pr:.4f}, F1: {hqw_f1:.4f}", flush=True)
-
-            eval_elapsed = time.time() - eval_start
-            total_elapsed = time.time() - suite_start
-            print(
-                f"{log_pfx} {depth}-hop completed in {eval_elapsed:.1f}s | "
-                f"Remaining runs: {remaining} | Total elapsed: {total_elapsed:.1f}s",
-                flush=True
-            )
-
-            scenario_results[depth] = {
-                "tab": (tab_pr, tab_f1),
-                "gcn": (gcn_pr, gcn_f1),
-                "hqw": (hqw_pr, hqw_f1),
-            }
-
-        summary_tables[scenario_key] = scenario_results
-
-        print(f"\n--- Checkpoint: Results for Scenario {s_idx} ({scenario_key}) ---", flush=True)
-        print(f"{'Model':<22} | {'2-Hop PR-AUC':>12} | {'4-Hop PR-AUC':>12} | {'6-Hop PR-AUC':>12}", flush=True)
-        for label, key in [("Tabular (GBDT)", "tab"), ("Classical GCN", "gcn"), ("HQW-AML v3", "hqw")]:
-            vals = [scenario_results[d][key][0] for d in depths]
-            print(f"{label:<22} | {vals[0]:>12.4f} | {vals[1]:>12.4f} | {vals[2]:>12.4f}", flush=True)
+        print(f"\n--- {name}: PR-AUC mean +/- std over {len(seeds)} seeds ---", flush=True)
+        print(f"{'Model':<40} | " + " | ".join(f"{d}-hop".center(13) for d in depths), flush=True)
+        for label, mk in MODELS:
+            cells = []
+            for d in depths:
+                vals = np.array([r[mk]["pr_auc"] for r in per_depth[d]])
+                cells.append(f"{np.nanmean(vals):.3f}+/-{np.nanstd(vals):.3f}")
+            print(f"{label:<40} | " + " | ".join(cells), flush=True)
         print("", flush=True)
 
-    suite_total_time = time.time() - suite_start
-    print(f"All {len(scenarios)} stress test scenarios finished in {suite_total_time:.1f}s.\n", flush=True)
+    print(f"Finished in {time.time() - suite_start:.1f}s.", flush=True)
+    return all_results
 
 
 if __name__ == "__main__":
