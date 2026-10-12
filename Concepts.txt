@@ -1,0 +1,18 @@
+We will be focusing solely on two Concepts from Quantum computing to come up with this algorithm
+
+1. Continuous-Time Quantum Walk (CTQW) Hamiltonian Dynamics
+2. Quantum-Inspired Spectral Feature Map (Unitary Wave Operator Embedding)
+
+
+Dataset for this experiment
+    - public Elliptic Bitcoin Dataset (or an AMLSim synthetic transaction graph). Elliptic contains 203,769 node transactions and 234,355 directed edges with labeled
+    illicit vs. licit transactions under real-world class imbalance (~2% illicit).
+
+Baselines to beat(Production grade classical systems to beat):
+ - Standard Tabular Random Forest / XGBoost on raw node features.
+- 2-hop and 4-hop Classical GCN / GraphSAGE (to capture the exact point where GNN performance collapses due to over-smoothing).
+
+Primary Target Metrics:
+- PR-AUC (Precision-Recall AUC)
+- F1-Score on the minority (illicit) class
+- False Positive Rate at 95% Recall.
