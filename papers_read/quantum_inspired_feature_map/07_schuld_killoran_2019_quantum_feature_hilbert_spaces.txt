@@ -1,0 +1,92 @@
+PAPER SUMMARY & PROJECT EXTRACTION ARCHIVE
+================================================================================
+Paper: Quantum Machine Learning in Feature Hilbert Spaces
+Authors: Maria Schuld and Nathan Killoran
+Publication: Physical Review Letters, Vol. 122, Art. 040504 (2019)
+DOI/Ref: doi:10.1103/PhysRevLett.122.040504 / arXiv:1803.07128
+Concept Track: Quantum-Inspired Spectral Feature Map & Unitary Wave Operator
+================================================================================
+
+1. CORE MATHEMATICAL MECHANISM
+--------------------------------------------------------------------------------
+This foundational Physical Review Letters paper establishes the exact theoretical
+equivalence between quantum machine learning algorithms and classical Kernel
+Methods in Reproducing Kernel Hilbert Spaces (RKHS).
+
+The Core Mathematical Unification:
+Any quantum algorithm that encodes classical data x into a quantum state
+|psi(x)> = U(x) |0> and measures an observable M:
+    f(x) = <psi(x)| M |psi(x)> = Tr[ M |psi(x)><psi(x)| ]
+is strictly equivalent to a linear model in a feature Hilbert space:
+    f(x) = <w, Phi(x)>_H
+where the feature map is Phi(x) = |psi(x)><psi(x)|, and the weight vector is w = M.
+
+Representer Theorem in Quantum Spaces:
+By the classical Representer Theorem, the optimal observable M_{opt} is an
+expansion over the training data:
+    M_{opt} = sum_{i=1}^m alpha_i |psi(x_i)><psi(x_i)|
+The decision function becomes:
+    f(x) = sum_{i=1}^m alpha_i |<psi(x_i)|psi(x)>|^2 = sum_{i=1}^m alpha_i K(x_i, x)
+where K(x_i, x) is the quantum kernel.
+
+Key Insight:
+Quantum variational classifiers (VQC) and quantum neural networks are simply
+kernel methods operating with an implicit quantum feature map. Designing a
+quantum algorithm is mathematically equivalent to engineering a novel kernel!
+
+
+2. WHY CLASSICAL SYSTEMS FAIL ON THIS DYNAMIC
+--------------------------------------------------------------------------------
+1. Fixed Classical Kernels Lack Graph Structure:
+   Standard classical kernels (Gaussian RBF, Polynomial) are data-agnostic: they
+   treat input features as flat Euclidean vectors, ignoring graph adjacency,
+   directed flow, and multi-hop network paths.
+2. Kernel Alignment Collapse under Severe Imbalance:
+   When classical kernels are trained on datasets where the positive class is
+   0.05% of the data, the kernel matrix Gram values are dominated by majority-class
+   inner products, causing the target alignment metric to collapse.
+
+
+3. DIRECT VALUE & FORMULATION FOR OUR PROJECT (MONEY-MULE DETECTION)
+--------------------------------------------------------------------------------
+Schuld & Killoran provides the theoretical justification for our hackathon project:
+We do NOT need an expensive, noisy physical quantum computer to benefit from
+quantum machine learning! Because quantum models are kernel methods, we can
+formulate and compute the quantum-inspired kernel directly on classical hardware.
+
+Formulation for our Fraud Detection Pipeline:
+1. Continuous-Time Quantum Walk Kernel:
+   We construct a quantum-inspired graph kernel K(G_1, G_2) or node kernel K(u, v):
+       K_{CTQW}(u, v) = (1/T) int_0^T |<u| exp(-i * H * t) |v>|^2 dt
+2. Spectral Kernel Engineering:
+   In the eigenbasis of H, this kernel has an exact, analytical closed form:
+       K_{CTQW}(u, v) = sum_{k, l: lambda_k = lambda_l} V_{uk} V_{vk}^* V_{vl} V_{ul}^*
+   This means the quantum feature map can be evaluated instantaneously without
+   numerical integration or quantum simulation loops!
+3. Feed this kernel into an SVM or use its principal eigenfunctions as rich
+   node embeddings for an XGBoost model.
+
+
+4. CONCRETE CODE BLUEPRINT FOR qia_engine.py
+--------------------------------------------------------------------------------
+```python
+import numpy as np
+
+def compute_schuld_spectral_kernel(H: np.ndarray) -> np.ndarray:
+    """
+    Computes Schuld-Killoran analytical infinite-time quantum walk kernel
+    in closed form without numerical integration:
+    K[u, v] = sum_k |V[u, k]|^2 * |V[v, k]|^2  (for non-degenerate H)
+    """
+    w, V = np.linalg.eigh(H)
+    # V_mag_sq[u, k] = |V[u, k]|^2
+    V_mag_sq = np.abs(V) ** 2
+    # Matrix product yields K[u, v] = sum_k V_mag_sq[u, k] * V_mag_sq[v, k]
+    K = V_mag_sq @ V_mag_sq.T
+    
+    # Normalize kernel matrix so diagonal is 1
+    diag = np.sqrt(np.diag(K))
+    K_norm = K / (np.outer(diag, diag) + 1e-12)
+    return K_norm
+```
+================================================================================

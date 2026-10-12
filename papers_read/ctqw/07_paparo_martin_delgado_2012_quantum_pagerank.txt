@@ -1,0 +1,108 @@
+PAPER SUMMARY & PROJECT EXTRACTION ARCHIVE
+================================================================================
+Paper: Google in a Quantum World: Quantum PageRank
+Authors: G. D. Paparo and M. A. Martin-Delgado
+Publication: Scientific Reports (Nature Publishing Group), Vol. 2, Art. 444 (2012)
+DOI/Ref: arXiv:1112.2079 / doi:10.1038/srep00444
+Concept Track: Continuous-Time Quantum Walk (CTQW) Hamiltonian Dynamics
+================================================================================
+
+1. CORE MATHEMATICAL MECHANISM
+--------------------------------------------------------------------------------
+This paper establishes the quantum counterpart to the classical Google PageRank
+algorithm for directed complex networks.
+
+Classical PageRank Dilemma:
+Classical PageRank computes the principal eigenvector of the Google matrix:
+    G = alpha * P + (1 - alpha) * (e * e^T) / N
+where P is the row-stochastic transition matrix and alpha ~ 0.85 is the damping
+factor introduced artificially to prevent the random walker from getting trapped
+in "dangling nodes" (nodes with no out-links) or absorbing cycles.
+
+Quantum Formulation:
+The authors formulate a quantum walk on the directed bipartite directed network
+Hilbert space H_N \otimes H_N (using a Szegedy/unitary walk quantization of
+the directed transition matrix):
+    U = S * (2 * Pi - I)
+where Pi is the projector onto the directed link states |psi_j> = sum_k sqrt(P_{jk}) |j, k>,
+and S is the swap operator S|j, k> = |k, j>.
+
+The Quantum PageRank of node p is obtained via the instantaneous or time-averaged
+occupation probability:
+    I_q(p, t) = Tr[ (|p><p| \otimes I) U^t rho_0 (U^\dagger)^t ]
+    <I_q(p)> = lim_{T -> infty} (1/T) sum_{t=0}^{T-1} I_q(p, t)
+
+Key Theoretical Insights:
+1. Resolving the Degeneracy Trap:
+   In classical PageRank, nodes in symmetric branches or peripheral clusters
+   often receive uniform or degenerate ranks. Quantum PageRank breaks this
+   degeneracy due to quantum phase interference.
+2. Sensitivity to Structural Fluctuations:
+   Quantum PageRank is significantly more sensitive to network topology and
+   directional asymmetries than classical PageRank. It highlights secondary
+   hubs that classical PageRank dampens.
+
+
+2. WHY CLASSICAL SYSTEMS FAIL ON THIS DYNAMIC
+--------------------------------------------------------------------------------
+1. Classical Damping Artifacts:
+   In classical banking fraud engines, variants of PageRank (e.g., Personalized
+   PageRank, PPR) are frequently used to trace stolen money. However, the classical
+   damping factor (1 - alpha) causes the signal to decay exponentially with path
+   length: at distance k from the victim, the influence is bounded by alpha^k.
+   By hop 4, alpha^4 = 0.85^4 = 0.52; by hop 6, alpha^6 = 0.37. The signal fades
+   into uniform damping noise.
+2. Inability to Distinguish Layered Funnels from Dangling Leaves:
+   Classical PageRank treats an account that does not immediately disperse funds
+   as an ordinary dangling leaf, distributing its damping probability equally
+   across all N nodes in the entire network.
+
+
+3. DIRECT VALUE & FORMULATION FOR OUR PROJECT (MONEY-MULE DETECTION)
+--------------------------------------------------------------------------------
+Paparo & Martin-Delgado provide the mathematical justification for replacing
+Personalized PageRank with Quantum Walk Ranking in transaction graphs:
+
+1. Deep Chain Visibility:
+   Because the unitary evolution preserves norm without artificial damping
+   dissipation (alpha = 1), quantum walk probability travels undampened through
+   4-hop, 5-hop, and 6-hop mule laundering chains.
+2. Mule Funnel Ranking:
+   Money mules that collect micro-transfers before cashing out exhibit higher
+   relative Quantum PageRank variance compared to classical PPR:
+       Quantum_Rank_Delta(v) = Rank_{quant}(v) - Rank_{PPR}(v)
+   Nodes with high positive Delta are topological accumulators that evade
+   classical PageRank due to low degree, but are surfaced by quantum interference.
+
+
+4. CONCRETE CODE BLUEPRINT FOR qia_engine.py
+--------------------------------------------------------------------------------
+```python
+import numpy as np
+import scipy.linalg
+
+def compute_quantum_directed_rank(H_directed: np.ndarray, source_idx: int, t_steps: list) -> np.ndarray:
+    """
+    Computes Quantum Walk Ranking vector from a source transaction node
+    without artificial exponential damping decay.
+    """
+    N = H_directed.shape[0]
+    w, V = np.linalg.eigh(H_directed)
+    
+    # Initial state localized at victim/source account
+    psi_0 = np.zeros(N, dtype=np.complex128)
+    psi_0[source_idx] = 1.0
+    
+    c = V.conj().T @ psi_0  # Projection coefficients
+    
+    time_avg_prob = np.zeros(N)
+    for t in t_steps:
+        # |psi(t)> = V @ diag(exp(-i * w * t)) @ c
+        psi_t = V @ (np.exp(-1j * w * t) * c)
+        prob_t = np.abs(psi_t) ** 2
+        time_avg_prob += prob_t
+        
+    time_avg_prob /= len(t_steps)
+    return time_avg_prob
+```
+================================================================================

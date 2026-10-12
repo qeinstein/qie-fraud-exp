@@ -1,0 +1,115 @@
+PAPER SUMMARY & PROJECT EXTRACTION ARCHIVE
+================================================================================
+Paper: Power of Data in Quantum Machine Learning
+Authors: Hsin-Yuan Huang, Michael Broughton, Masoud Mohseni, Ryan Babbush,
+         Sergio Boixo, Hartmut Neven, and Jarrod R. McClean
+Publication: Nature Communications, Vol. 12, Art. 2631 (2021)
+DOI/Ref: doi:10.1038/s41467-021-22539-9 / arXiv:2011.01938
+Concept Track: Quantum-Inspired Spectral Feature Map & Unitary Wave Operator
+================================================================================
+
+1. CORE MATHEMATICAL MECHANISM
+--------------------------------------------------------------------------------
+This foundational Nature Communications paper from Google Quantum AI provides
+the rigorous mathematical conditions under which quantum models and quantum kernels
+outperform classical machine learning models.
+
+The Geometric Difference Metric (g-Score):
+The authors formalize when a quantum kernel K_Q(x, x') can achieve a verifiable
+learning advantage over any classical kernel K_C(x, x'). They define the
+projected quantum kernel and the geometric difference:
+    g(K_Q, K_C) = sqrt( ||sqrt(K_Q) * K_C^{-1} * sqrt(K_Q)||_inf )
+where ||.||_inf is the spectral norm.
+Key Mathematical Result:
+1. If g(K_Q, K_C) is large, the quantum feature space contains directions of
+   variation that classical kernels cannot approximate without an exponential
+   number of training samples.
+2. Projected Quantum Kernels (PQK):
+   Instead of using the raw global state fidelity |<Phi(x)|Phi(x')>|^2 (which
+   suffers from exponential concentration / "barren plateaus" in high dimensions),
+   the authors introduce Projected Quantum Kernels:
+       K_{PQ}(x, x') = exp( -gamma * sum_k ||rho_k(x) - rho_k(x')||_F^2 )
+   where rho_k(x) is the 1-body or 2-body reduced density matrix on subsystem k.
+   Projected quantum kernels avoid exponential concentration while preserving
+   high discriminative capacity!
+
+
+2. WHY CLASSICAL SYSTEMS FAIL ON THIS DYNAMIC
+--------------------------------------------------------------------------------
+1. Exponential Sample Complexity of Classical Kernels:
+   On complex topological correlations (such as multi-party entanglement or
+   multi-hop graph invariants), classical kernels require a sample size that
+   grows exponentially with graph diameter to distinguish subtle correlations
+   from random noise.
+2. Barren Plateau Trap in Raw Quantum States:
+   Many naive quantum ML attempts evaluate global inner products, which
+   concentrate exponentially around zero (K(x, x') ~ 2^{-N}), making gradient
+   descent impossible. Huang et al.'s projection resolves this completely.
+
+
+3. DIRECT VALUE & FORMULATION FOR OUR PROJECT (MONEY-MULE DETECTION)
+--------------------------------------------------------------------------------
+Huang et al. provides the crucial engineering guideline for our Quantum-Inspired
+Feature Map:
+
+We must use Projected Quantum Embeddings (Reduced Subsystem States) rather than
+global state inner products!
+
+Formulation for qia_engine.py:
+1. Reduced Local Density Matrix Projection:
+   For each node u in the transaction graph, we compute the local 1-hop reduced
+   density matrix rho_u(t) under the unitary wave evolution:
+       rho_u(t) = P_{u, :} * P_{u, :}^T / ||P_{u, :}||_2^2
+2. Projected Quantum Kernel Metric:
+   The similarity between two candidate accounts u and v is computed via the
+   Frobenius distance between their reduced density operators:
+       K_{PQ}(u, v) = exp( -gamma * ||rho_u(t) - rho_v(t)||_F^2 )
+3. High Separation Capacity:
+   This ensures our quantum-inspired features do not suffer from numerical
+   concentration, providing steep gradients that allow XGBoost / Random Forest
+   heads to achieve high PR-AUC even under extreme 0.05% class imbalance!
+
+
+4. CONCRETE CODE BLUEPRINT FOR qia_engine.py
+--------------------------------------------------------------------------------
+```python
+import numpy as np
+
+def compute_projected_quantum_kernel(H: np.ndarray, t: float = 1.0, 
+                                     gamma: float = 1.0) -> np.ndarray:
+    """
+    Computes Huang et al. Projected Quantum Kernel (PQK) across all graph nodes:
+    K_PQ[u, v] = exp(-gamma * ||rho_u(t) - rho_v(t)||_F^2)
+    Avoids exponential concentration while preserving high-order topological features.
+    """
+    N = H.shape[0]
+    w, V = np.linalg.eigh(H)
+    U_t = V @ np.diag(np.exp(-1j * w * t)) @ V.conj().T
+    P_t = np.abs(U_t) ** 2  # Transition probability matrix
+    
+    # Construct reduced rank-1 projector for each node u: rho_u = p_u @ p_u^T / ||p_u||^2
+    reduced_rhos = []
+    for u in range(N):
+        vec = P_t[u, :]
+        norm_sq = np.sum(vec ** 2)
+        if norm_sq > 0:
+            rho_u = np.outer(vec, vec) / norm_sq
+        else:
+            rho_u = np.zeros((N, N))
+        reduced_rhos.append(rho_u)
+        
+    reduced_rhos = np.array(reduced_rhos)  # Shape (N, N, N)
+    
+    # Compute pairwise Frobenius distances
+    K_PQ = np.zeros((N, N))
+    for u in range(N):
+        for v in range(u, N):
+            diff = reduced_rhos[u] - reduced_rhos[v]
+            frob_dist_sq = np.sum(diff ** 2)
+            sim = np.exp(-gamma * frob_dist_sq)
+            K_PQ[u, v] = sim
+            K_PQ[v, u] = sim
+            
+    return K_PQ
+```
+================================================================================

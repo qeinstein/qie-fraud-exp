@@ -1,0 +1,106 @@
+PAPER SUMMARY & PROJECT EXTRACTION ARCHIVE
+================================================================================
+Paper: Unitary Convolutions for Learning on Graphs and Groups
+Authors: Bobak T. Kiani, Lukas Fesser, and Melanie Weber
+Publication: Advances in Neural Information Processing Systems (NeurIPS 2024, Spotlight)
+DOI/Ref: arXiv:2410.05499 [cs.LG / math.ST]
+Concept Track: Quantum-Inspired Spectral Feature Map & Unitary Wave Operator
+================================================================================
+
+1. CORE MATHEMATICAL MECHANISM
+--------------------------------------------------------------------------------
+This recent NeurIPS 2024 Spotlight paper establishes the mathematical theory of
+Unitary Convolutions on graphs and groups to eliminate over-smoothing.
+
+Key Mathematical Insight:
+Standard graph convolution layers evaluate:
+    X^{(l+1)} = sigma( P * X^{(l)} * W^{(l)} )
+where P is a normalized adjacency or random walk matrix (e.g., D^{-1/2} A D^{-1/2}
+or D^{-1} A). Because P has eigenvalues bounded in [-1, 1] with an isolated
+eigenvalue at 1 corresponding to the trivial constant subspace, repeated
+application of P acts as a strict contraction mapping:
+    lim_{l -> infty} P^l X = 1 * v^T (constant vector)
+
+The Unitary Convolution Alternative:
+The authors replace the contracting operator P with a unitary operator U:
+    U^\dagger U = I
+Specifically, they parameterize graph convolutions using unitary group operations
+and matrix exponentials of skew-Hermitian / Hamiltonian generators:
+    U(theta) = exp( sum_k theta_k * A_k )  where A_k^\dagger = -A_k
+Because unitary operators preserve the L2 norm (||U x||_2 = ||x||_2) and the full
+spectral energy distribution across all non-trivial eigenmodes:
+- The Jacobian norm of the layer remains identically equal to 1.
+- The model mathematically CANNOT collapse into an identical mean.
+- The authors formally prove that Unitary Graph Convolutions are provably immune
+  to over-smoothing across arbitrary network depth!
+
+
+2. WHY CLASSICAL SYSTEMS FAIL ON THIS DYNAMIC
+--------------------------------------------------------------------------------
+1. Eigenvalue Contraction in Classical Adjacency:
+   Every classical GNN propagation matrix has non-trivial eigenvalues
+   |lambda_i| < 1. Across L layers, these components decay as lambda_i^L -> 0.
+   After just 4 layers with lambda_i = 0.5, the signal strength is 0.5^4 = 0.0625
+   (over 93% information loss!).
+2. Loss of High-Frequency Laundering Anomalies:
+   Fraudulent transaction bursts are high-frequency graph signals (sharp local
+   discrepancies between neighboring accounts). Classical contracting operators
+   specifically filter out high frequencies, retaining only smooth low frequencies.
+
+
+3. DIRECT VALUE & FORMULATION FOR OUR PROJECT (MONEY-MULE DETECTION)
+--------------------------------------------------------------------------------
+Kiani et al.'s proof justifies our exact algorithm:
+Using the continuous-time unitary operator U(t) = exp(-i * H * t) as the core
+graph feature extractor instead of spatial GNN layers.
+
+Formulation for qia_engine.py:
+1. Unitary Spectral Wave Operator Map:
+   Given input raw transaction features X_0 in R^{N x d} (e.g., velocity, balance,
+   inflow/outflow ratio):
+   Transform X_0 into complex Hilbert space: Z_0 = X_0 + 0j.
+   Compute the unitary wave projection across multi-scale times t_k:
+       Z(t_k) = U(t_k) * Z_0 = exp(-i * H * t_k) * Z_0
+2. Extract Unitary Invariants:
+   - Amplitude: M(t_k) = |Z(t_k)| (magnitude preservation)
+   - Phase Angle: Phi(t_k) = angle(Z(t_k)) (encodes topological interference)
+   - Spectral Energy Conservation: ||Z(t_k)||_F = ||Z_0||_F (exact invariance)
+3. Feed the resulting feature matrix [M(t_1), Phi(t_1), ..., M(t_K), Phi(t_K)]
+   into a gradient boosted tree (XGBoost) or MLP. This guarantees that multi-hop
+   mule indicators are preserved intact!
+
+
+4. CONCRETE CODE BLUEPRINT FOR qia_engine.py
+--------------------------------------------------------------------------------
+```python
+import numpy as np
+
+def unitary_spectral_feature_map(H: np.ndarray, raw_features: np.ndarray, 
+                                 times: list = [0.5, 1.0, 2.0]) -> np.ndarray:
+    """
+    Applies Kiani et al. unitary convolution feature map:
+    Z(t) = exp(-i * H * t) @ (raw_features)
+    Preserves L2 norms and extracts both amplitude and phase features.
+    """
+    w, V = np.linalg.eigh(H)
+    feature_blocks = [raw_features]
+    
+    # Cast raw features to complex
+    Z_0 = raw_features.astype(np.complex128)
+    
+    for t in times:
+        # Diagonal unitary operator in eigenbasis
+        exp_diag = np.exp(-1j * w * t)
+        # U(t) @ Z_0 = V @ diag(exp_diag) @ V^\dagger @ Z_0
+        Z_t = V @ (exp_diag[:, None] * (V.conj().T @ Z_0))
+        
+        # Extract norm-preserving magnitude and interference phase
+        magnitude = np.abs(Z_t)
+        phase = np.angle(Z_t)
+        
+        feature_blocks.append(magnitude)
+        feature_blocks.append(phase)
+        
+    return np.hstack(feature_blocks)
+```
+================================================================================

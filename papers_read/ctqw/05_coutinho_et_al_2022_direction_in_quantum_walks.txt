@@ -1,0 +1,118 @@
+PAPER SUMMARY & PROJECT EXTRACTION ARCHIVE
+================================================================================
+Paper: Why and How to Add Direction to a Quantum Walk
+Authors: Gabriel Coutinho, Chris Godsil, Krystal Guo, and Hanmeng Zhan
+Publication: Algebraic and Combinatorial Perspectives / arXiv:2203.13857 (2022)
+DOI/Ref: arXiv:2203.13857 [quant-ph / math.CO]
+Concept Track: Continuous-Time Quantum Walk (CTQW) Hamiltonian Dynamics
+================================================================================
+
+1. CORE MATHEMATICAL MECHANISM
+--------------------------------------------------------------------------------
+This paper provides an algebraic graph theory classification of continuous-time
+quantum walks on directed/mixed graphs, rigorously formalizing Hermitian adjacency
+matrices and uncovering phenomena unique to directed quantum walks.
+
+Mathematical Framework:
+For a mixed graph with directed arcs (u -> v) and undirected edges (u - v):
+The Hermitian adjacency matrix H(G) is defined entry-wise:
+    H_{u,v} = 1     if u - v is an undirected edge
+    H_{u,v} = i     if u -> v is a directed arc
+    H_{u,v} = -i    if v -> u is a directed arc
+    H_{u,v} = 0     otherwise
+
+Key Discoveries:
+1. Zero-Transfer Phenomenon:
+   In undirected graphs, if two nodes are connected by a path, P_{u -> v}(t) is
+   almost never identically zero for all t. In directed graphs with Hermitian
+   adjacency, there exist node pairs where P_{u -> v}(t) = 0 for all t, while
+   P_{v -> u}(t) > 0! This is pure quantum chiral routing.
+2. Breaking Monogamy of State Transfer:
+   In undirected graphs, perfect state transfer (PST) between u and v prevents u
+   from having PST to any other node w (monogamy). In directed graphs, direction
+   breaks monogamy, allowing one source node to efficiently transfer quantum
+   amplitude to a coordinated ring of targets.
+3. Spectral Decomposition:
+   H = sum_{r} theta_r E_r, where theta_r are real eigenvalues and E_r are complex
+   orthogonal spectral projectors (E_r E_s = delta_{rs} E_r, E_r^\dagger = E_r).
+
+
+2. WHY CLASSICAL SYSTEMS FAIL ON THIS DYNAMIC
+--------------------------------------------------------------------------------
+1. Reversibility Paradox:
+   Classical diffusion on undirected networks is symmetric. When classical
+   systems attempt to preserve direction, they typically construct non-normal
+   transition matrices (A != A^T) that have complex eigenvalues and non-orthogonal
+   eigenvectors, causing numerical instability and exponential explosion when
+   exponentiated.
+2. Topological Sensitivity:
+   Classical directed metrics (e.g., Katz centrality, in-degree/out-degree)
+   evaluate local edge counts. They are insensitive to subtle topological phase
+   cancellations where multiple divergent paths cancel each other out except
+   at an intended funnel point.
+
+
+3. DIRECT VALUE & FORMULATION FOR OUR PROJECT (MONEY-MULE DETECTION)
+--------------------------------------------------------------------------------
+Coutinho et al.'s formulation (H_{uv} = i for directed arcs) gives us a parameter-free,
+discrete Hermitian representation of directed bank transactions!
+
+Application to Multi-Hop Mule Ring Discovery:
+1. Transaction Graph Mapping:
+   Given a set of streaming banking transactions, construct the directed adjacency:
+   - For every transaction u -> v, set H_{uv} = i and H_{vu} = -i.
+   - For reciprocal bilateral transactions (e.g., refund or mutual transfers),
+     set H_{uv} = 1.
+2. Zero-Transfer & Asymmetric Reachability Kernel:
+   Compute the time-averaged reachability matrix:
+       K_{u, v} = (1/T) int_0^T |U_{vu}(t)|^2 dt
+   Because of chiral interference:
+   - For a legitimate customer, K_{u, v} and K_{v, u} are balanced.
+   - For a money mule conduit, K_{victim, mule} is high, while K_{mule, victim}
+     approaches zero!
+   This provides an algebraic filter that flags one-way extraction corridors
+   without arbitrary heuristic threshold tuning.
+
+
+4. CONCRETE CODE BLUEPRINT FOR qia_engine.py
+--------------------------------------------------------------------------------
+```python
+import numpy as np
+
+def build_coutinho_hermitian_matrix(digraph_edges: list, num_nodes: int) -> np.ndarray:
+    """
+    Constructs Coutinho et al. parameter-free Hermitian adjacency matrix:
+    H_{uv} = i if (u -> v), -i if (v -> u), 1 if reciprocal (u <-> v).
+    """
+    H = np.zeros((num_nodes, num_nodes), dtype=np.complex128)
+    edge_set = set(digraph_edges)
+    
+    for (u, v) in digraph_edges:
+        if (v, u) in edge_set and u != v:
+            # Reciprocal edge
+            H[u, v] = 1.0
+            H[v, u] = 1.0
+        else:
+            # One-way directed arc
+            H[u, v] = 1j
+            H[v, u] = -1j
+            
+    return H
+
+def compute_chiral_asymmetry_score(H: np.ndarray, t: float = 1.5) -> np.ndarray:
+    """
+    Returns per-node chiral asymmetry score: difference between incoming
+    and outgoing quantum transition probabilities.
+    """
+    w, V = np.linalg.eigh(H)
+    U_t = V @ np.diag(np.exp(-1j * w * t)) @ V.conj().T
+    P = np.abs(U_t) ** 2  # P[v, u] = transition from u to v
+    
+    # Net quantum sink score for each node v:
+    # incoming prob from all u - outgoing prob from v to all u
+    incoming = np.sum(P, axis=1) - np.diag(P)
+    outgoing = np.sum(P, axis=0) - np.diag(P)
+    net_sink_score = incoming - outgoing
+    return net_sink_score
+```
+================================================================================

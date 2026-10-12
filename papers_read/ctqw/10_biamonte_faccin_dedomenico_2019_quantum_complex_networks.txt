@@ -1,0 +1,102 @@
+PAPER SUMMARY & PROJECT EXTRACTION ARCHIVE
+================================================================================
+Paper: Complex Networks from Classical to Quantum
+Authors: Jacob Biamonte, Mauro Faccin, and Manlio De Domenico
+Publication: Communications Physics (Nature Publishing Group), Vol. 2, Art. 53 (2019)
+DOI/Ref: arXiv:1702.08459 / doi:10.1038/s42005-019-0152-8
+Concept Track: Continuous-Time Quantum Walk (CTQW) Hamiltonian Dynamics
+================================================================================
+
+1. CORE MATHEMATICAL MECHANISM
+--------------------------------------------------------------------------------
+This landmark review bridges classical complex network theory and quantum walks,
+formalizing how quantum transport, quantum interference, and multiplex/multilayer
+dynamics reveal topological features undetectable by classical network analysis.
+
+Key Theoretical Concepts:
+1. Quantum Transition Probability Density Matrix:
+   The continuous-time quantum walk transition probability tensor between all
+   node pairs is governed by:
+       T_{ij}(t) = |<j| exp(-i * H * t) |i>|^2
+   Unlike classical Markov transition matrices, T(t) is symmetric and bistochastic
+   (sum_i T_{ij} = 1, sum_j T_{ij} = 1) even for unnormalized Laplacians,
+   guaranteeing energy and information conservation.
+
+2. Quantum Community Detection & Multiscale Partitioning:
+   In classical community detection (e.g., Infomap, Louvain), random walkers
+   become trapped in dense communities. In quantum networks, community boundaries
+   act as coherent phase barriers. The time parameter t acts as a continuous
+   "microscope resolution":
+   - Small t (t -> 0): Quantum walker probes immediate 1-hop neighborhoods.
+   - Intermediate t: Quantum amplitudes undergo constructive interference inside
+     tight structural modules (mule rings).
+   - Large t: Walker probes global network symmetries and conserved subspaces.
+
+3. Von Neumann Entropy of Time-Evolved Network:
+   S(t) = -Tr[rho(t) * log_2(rho(t))].
+   The rate of entropy production dS/dt indicates whether the underlying graph is
+   modular (slow entropy generation) or random/disordered (rapid entropy saturation).
+
+
+2. WHY CLASSICAL SYSTEMS FAIL ON THIS DYNAMIC
+--------------------------------------------------------------------------------
+1. Over-Partitioning vs. Over-Smoothing:
+   Classical modularity optimization (Louvain) frequently suffers from the
+   "resolution limit": it fails to detect small, tight communities (like a 5-node
+   mule ring) when embedded in a massive banking graph of millions of transactions.
+2. Classical Diffusion Blur:
+   Classical random walks diffuse into background noise, losing the phase
+   signatures that distinguish malicious tightly-coupled subgraphs from benign
+   commercial transaction clusters.
+
+
+3. DIRECT VALUE & FORMULATION FOR OUR PROJECT (MONEY-MULE DETECTION)
+--------------------------------------------------------------------------------
+Biamonte et al. provides the theoretical justification for our Case Partitioning
+Engine:
+
+1. Multiscale Quantum Resolution Filtering:
+   By evaluating the transition tensor T(t) across a logarithmic time sweep
+   t in {0.2, 0.5, 1.0, 2.0, 5.0}, we capture multi-scale ring structures.
+   - Mule rings resonate strongly at intermediate time scales t_res ~ 1 / lambda_{gap},
+     where lambda_{gap} is the spectral gap of the local subgraph.
+2. Quantum Modular Partitioning (Case Grouping):
+   Define the quantum affinity between account i and account j:
+       A_{quant}(i, j) = (1/K) sum_{k=1}^K T_{ij}(t_k)
+   Cluster accounts into a single Case ID (CASE-MULE-XXX) by thresholding
+   A_{quant}(i, j) > threshold. This aggregates all mules involved in the ring
+   into a single forensic dossier without firing 50 isolated alerts!
+
+
+4. CONCRETE CODE BLUEPRINT FOR qia_engine.py
+--------------------------------------------------------------------------------
+```python
+import numpy as np
+
+def compute_multiscale_quantum_affinity(H: np.ndarray, t_scales: list = [0.2, 0.5, 1.0, 2.0]) -> np.ndarray:
+    """
+    Computes Biamonte et al. multiscale quantum affinity matrix for case clustering:
+    A_{quant}[i, j] = (1/K) sum_k |<j| exp(-i * H * t_k) |i>|^2
+    """
+    N = H.shape[0]
+    w, V = np.linalg.eigh(H)
+    A_quant = np.zeros((N, N), dtype=np.float64)
+    
+    for t in t_scales:
+        U_t = V @ np.diag(np.exp(-1j * w * t)) @ V.conj().T
+        T_t = np.abs(U_t) ** 2
+        A_quant += T_t
+        
+    A_quant /= len(t_scales)
+    return A_quant
+
+def cluster_mule_ring_nodes(A_quant: np.ndarray, seed_node: int, threshold: float = 0.15) -> list:
+    """
+    Identifies all account nodes belonging to the same coherent mule ring
+    originating from or linked to seed_node.
+    """
+    affinities = A_quant[seed_node, :]
+    ring_members = [int(i) for i in np.where(affinities > threshold)[0]]
+    return ring_members
+```
+================================================================================

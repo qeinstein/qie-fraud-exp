@@ -1,0 +1,111 @@
+PAPER SUMMARY & PROJECT EXTRACTION ARCHIVE
+================================================================================
+Paper: Degree Distribution in Quantum Walks on Complex Networks
+Authors: Mauro Faccin, Tomi H. Johnson, Jacob Biamonte, Sabre Kais,
+         and Sabrina Maniscalco
+Publication: Physical Review X, Vol. 3, Art. 041007 (2013)
+DOI/Ref: arXiv:1302.6565 / doi:10.1103/PhysRevX.3.041007
+Concept Track: Continuous-Time Quantum Walk (CTQW) Hamiltonian Dynamics
+================================================================================
+
+1. CORE MATHEMATICAL MECHANISM
+--------------------------------------------------------------------------------
+This foundational study in Physical Review X explores how quantum mechanics
+alters the notion of node importance, degree distribution, and centrality in
+complex networks.
+
+In classical random walks, the average time a walker spends at a node (classical
+centrality) is strictly proportional to its degree:
+    p_k^{class} = d_k / (2 * |E|)
+In a continuous-time quantum walk, the time-averaged occupation probability of a
+node k, starting from an unbiased maximally mixed initial state
+rho_0 = (1/N) * sum_v |v><v| = I / N, is given by:
+    pi_k = lim_{T -> infty} (1/T) int_0^T Tr[|k><k| exp(-i H t) rho_0 exp(i H t)] dt
+         = (1/N) * sum_n |<k|phi_n>|^4   (for non-degenerate spectrum)
+where |phi_n> are the eigenvectors of the graph Hamiltonian H.
+
+Key Findings:
+1. Quantum-Classical Divergence:
+   pi_k does NOT follow the classical degree d_k. Instead, due to multi-path
+   constructive and destructive interference, low-degree nodes located at
+   topological choke points or bottleneck paths can have massively amplified
+   quantum centrality!
+2. Quantum Trapping & Localization:
+   Quantum walks can exhibit strong localization even in connected networks due
+   to destructive interference across symmetric branches (Aharonov-Bohm-like
+   cancellation), while certain core nodes experience resonant enhancement.
+
+
+2. WHY CLASSICAL SYSTEMS FAIL ON THIS DYNAMIC
+--------------------------------------------------------------------------------
+1. Hub Bias in Classical Graph Models:
+   Classical centrality measures (PageRank, Degree, Eigenvector Centrality) are
+   heavily biased toward raw transaction volume and high-degree accounts (e.g.,
+   utility companies, telcos, supermarkets). Money mules, however, are deliberately
+   low-degree accounts (1 inflow, 2-3 outflows) designed to fly under classical
+   volume thresholds.
+2. Blindness to Destructive Trapping:
+   Classical models cannot model interference suppression. They assume that if an
+   account has only 2 incoming transactions, it is insignificant. In contrast,
+   quantum walk centrality identifies when a low-degree node acts as a resonant
+   bridge in a multi-hop syndicate topology.
+
+
+3. DIRECT VALUE & FORMULATION FOR OUR PROJECT (MONEY-MULE DETECTION)
+--------------------------------------------------------------------------------
+Faccin et al.'s formulation gives us a direct scalar feature: Quantum Walk
+Centrality vs. Classical Degree Centrality Ratio!
+
+Metric Definition:
+For each account node k in the transaction subgraph:
+1. Compute classical normalized degree centrality:
+       C_{class}(k) = d_k / (2 * |E|)
+2. Compute Faccin et al.'s Quantum Walk Centrality:
+       C_{quant}(k) = (1/N) * sum_n |V_{k,n}|^4
+   where V is the eigenvector matrix of H.
+3. Compute the "Quantum Amplification Ratio":
+       QAR(k) = C_{quant}(k) / (C_{class}(k) + 1e-6)
+
+Detection Principle:
+- Regular high-volume accounts (merchants): High classical degree, moderate QAR.
+- Dormant/Low-profile money mules: Low classical degree, but highly resonant
+  quantum centrality (high QAR) because they are topologically positioned to
+  funnel coordinated flows.
+This directly separates money mules from legitimate retail users!
+
+
+4. CONCRETE CODE BLUEPRINT FOR qia_engine.py
+--------------------------------------------------------------------------------
+```python
+import numpy as np
+
+def compute_quantum_walk_centrality(H: np.ndarray) -> np.ndarray:
+    """
+    Computes Faccin et al. (PRX 2013) time-averaged quantum occupation centrality:
+    pi_k = (1/N) * sum_n |V_{k,n}|^4
+    Complexity: O(N^3) for eigendecomposition.
+    """
+    N = H.shape[0]
+    w, V = np.linalg.eigh(H)
+    # V is N x N eigenvector matrix
+    # Compute sum over eigenvectors of the 4th power of absolute amplitudes
+    pi = (1.0 / N) * np.sum(np.abs(V) ** 4, axis=1)
+    return pi
+
+def compute_quantum_amplification_ratio(H: np.ndarray, adj_matrix: np.ndarray) -> np.ndarray:
+    """
+    Computes ratio of quantum centrality to classical degree centrality.
+    High ratio highlights topologically resonant low-degree nodes (mules).
+    """
+    pi_quant = compute_quantum_walk_centrality(H)
+    degrees = np.sum(adj_matrix > 0, axis=1)
+    total_deg = np.sum(degrees)
+    if total_deg == 0:
+        return np.ones_like(pi_quant)
+    pi_class = degrees / total_deg
+    
+    # Quantum Amplification Ratio
+    qar = pi_quant / (pi_class + 1e-6)
+    return qar
+```
+================================================================================

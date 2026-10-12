@@ -1,0 +1,123 @@
+PAPER SUMMARY & PROJECT EXTRACTION ARCHIVE
+================================================================================
+Paper: A Quantum Jensen-Shannon Divergence Graph Kernel for Unattributed Graphs
+Authors: Lu Bai, Luca Rossi, Andrea Torsello, and Edwin R. Hancock
+Publication: Pattern Recognition, Vol. 48, No. 8, pp. 2444-2455 (2015)
+DOI/Ref: doi:10.1016/j.patcog.2015.02.007 / Pattern Recognition (2015)
+Concept Track: Quantum-Inspired Spectral Feature Map & Unitary Wave Operator
+================================================================================
+
+1. CORE MATHEMATICAL MECHANISM
+--------------------------------------------------------------------------------
+This paper introduces an entropic graph kernel based on continuous-time quantum
+walks and the Quantum Jensen-Shannon Divergence (QJSD) between quantum state
+density matrices.
+
+Mathematical Construction:
+1. Directed Graph Thermal State:
+   Given a graph G with normalized Laplacian L = D^{-1/2} (D - A) D^{-1/2}, the
+   quantum thermal state at inverse temperature beta is:
+       rho_G(beta) = exp(-beta * L) / Tr[exp(-beta * L)]
+2. Quantum Jensen-Shannon Divergence (QJSD):
+   For two graph structures G_1 and G_2, the QJSD between their respective density
+   matrices is:
+       QJSD(rho_1, rho_2) = S((rho_1 + rho_2) / 2) - 0.5 * S(rho_1) - 0.5 * S(rho_2)
+   where S(rho) = -Tr[rho * log_2(rho)] is the Von Neumann entropy.
+3. Mercer Kernel Formulation:
+   The authors prove that exp(-gamma * QJSD(rho_1, rho_2)) forms a valid positive
+   definite Mercer graph kernel:
+       K_{QJSD}(G_1, G_2) = exp( -gamma * QJSD(rho_{G_1}, rho_{G_2}) )
+   Because QJSD is symmetric, bounded in [0, 1], and sqrt(QJSD) is a metric, this
+   kernel is guaranteed to be positive semi-definite and numerically stable!
+
+
+2. WHY CLASSICAL SYSTEMS FAIL ON THIS DYNAMIC
+--------------------------------------------------------------------------------
+1. Classical Weisfeiler-Lehman (WL) Kernel Limits:
+   The standard classical graph kernel benchmark (Weisfeiler-Lehman subtree kernel)
+   relies on 1-hop discrete multiset color refinement. On financial transaction
+   graphs where node degrees are similar and attributes are continuous (amounts,
+   timestamps), WL produces hash collisions and collapses in distinguishing
+   power.
+2. Classical Random Walk Kernels are Slow and Non-Convergent:
+   Classical random walk kernels require computing Kronecker products G_1 \otimes G_2,
+   which has O(N^6) complexity and explodes even for moderate graphs.
+   Bai et al.'s QJSD kernel evaluates density matrices independently in O(N^3)
+   and compares them directly in spectral space!
+
+
+3. DIRECT VALUE & FORMULATION FOR OUR PROJECT (MONEY-MULE DETECTION)
+--------------------------------------------------------------------------------
+Bai et al. provides the exact mathematical framework for Graph-Level and
+Subgraph-Level Anomaly Detection:
+
+Application to Subgraph Classification:
+1. In our streaming pipeline, when an alert fires, we extract the local k-hop
+   subgraph G_{candidate} (containing the suspect account and its 2-to-4-hop
+   neighborhood).
+2. Compute its normalized Laplacian and density matrix rho_{cand}(beta).
+3. Compute the QJSD Kernel similarity against a dictionary of prototypical
+   attack templates:
+       - Template 1: Canonical Fan-Out Mule Ring (Layering)
+       - Template 2: Rapid Dispersal & Re-aggregation (Funneling)
+       - Template 3: Legitimate Commercial Star (Merchant / Payroll)
+4. Kernel Feature Vector:
+       k_{vec}(G) = [ K_{QJSD}(G, T_1), K_{QJSD}(G, T_2), K_{QJSD}(G, T_3) ]
+   This gives an instant, rotation-invariant, 3-dimensional signature that tells
+   our downstream classifier and the LLM agent exactly which fraud topology is
+   occurring!
+
+
+4. CONCRETE CODE BLUEPRINT FOR qia_engine.py
+--------------------------------------------------------------------------------
+```python
+import numpy as np
+
+def compute_normalized_laplacian(A: np.ndarray) -> np.ndarray:
+    """Computes normalized Laplacian: L = I - D^{-1/2} A D^{-1/2}"""
+    deg = np.sum(A, axis=1)
+    inv_sqrt_deg = np.zeros_like(deg)
+    mask = deg > 0
+    inv_sqrt_deg[mask] = 1.0 / np.sqrt(deg[mask])
+    D_inv = np.diag(inv_sqrt_deg)
+    L = np.eye(A.shape[0]) - D_inv @ A @ D_inv
+    return L
+
+def qjsd_kernel_similarity(L1: np.ndarray, L2: np.ndarray, beta: float = 1.0, 
+                           gamma: float = 2.0) -> float:
+    """
+    Computes Bai et al. QJSD Mercer kernel between two graph Laplacians:
+    K(G1, G2) = exp(-gamma * QJSD(rho1, rho2))
+    """
+    # Density matrices
+    w1, V1 = np.linalg.eigh(L1)
+    exp_w1 = np.exp(-beta * w1)
+    rho1 = V1 @ np.diag(exp_w1 / np.sum(exp_w1)) @ V1.conj().T
+    
+    w2, V2 = np.linalg.eigh(L2)
+    exp_w2 = np.exp(-beta * w2)
+    rho2 = V2 @ np.diag(exp_w2 / np.sum(exp_w2)) @ V2.conj().T
+    
+    # Pad to same dimension if sizes differ
+    N = max(rho1.shape[0], rho2.shape[0])
+    r1_pad = np.zeros((N, N), dtype=np.complex128)
+    r2_pad = np.zeros((N, N), dtype=np.complex128)
+    r1_pad[:rho1.shape[0], :rho1.shape[1]] = rho1
+    r2_pad[:rho2.shape[0], :rho2.shape[1]] = rho2
+    
+    # Von Neumann entropies
+    def vne(r):
+        vals = np.linalg.eigvalsh(r)
+        vals = vals[vals > 1e-12]
+        vals = vals / np.sum(vals)
+        return float(-np.sum(vals * np.log2(vals)))
+        
+    s1 = vne(r1_pad)
+    s2 = vne(r2_pad)
+    s_mix = vne(0.5 * (r1_pad + r2_pad))
+    qjsd = max(0.0, s_mix - 0.5 * s1 - 0.5 * s2)
+    
+    kernel_val = float(np.exp(-gamma * qjsd))
+    return kernel_val
+```
+================================================================================

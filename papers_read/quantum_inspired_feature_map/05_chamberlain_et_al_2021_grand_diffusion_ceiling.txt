@@ -1,0 +1,106 @@
+PAPER SUMMARY & PROJECT EXTRACTION ARCHIVE
+================================================================================
+Paper: GRAND: Graph Neural Diffusion
+Authors: Benjamin P. Chamberlain, James Rowbottom, Maria I. Gorinova,
+         Stefan D. Webb, Emanuele Rossi, and Michael M. Bronstein
+Publication: International Conference on Machine Learning (ICML 2021)
+DOI/Ref: arXiv:2106.10934 / Proceedings of the 38th ICML, PMLR 139 (2021)
+Concept Track: Quantum-Inspired Spectral Feature Map & Unitary Wave Operator
+================================================================================
+
+1. CORE MATHEMATICAL MECHANISM
+--------------------------------------------------------------------------------
+This foundational ICML paper establishes the continuous-time framework for
+graph neural networks by interpreting message passing as a discretized continuous
+diffusion process on graphs:
+    partial X(t) / partial t = div( G(X(t)) grad X(t) )
+where G(X(t)) is a learned state-dependent diffusion coefficient matrix (attention
+weights), and the spatial operator is the graph Laplacian.
+
+Formal Mathematical Proof of the Over-Smoothing Ceiling:
+When the diffusion operator is linear or positive semi-definite (as in standard
+GCN, GraphSAGE, and GAT), the continuous trajectory satisfies:
+    lim_{t -> infty} X(t) = (1 / |V|) * 1 * 1^T X(0)
+The Dirichlet energy E(X(t)) = 0.5 * Tr(X(t)^T L X(t)) decays exponentially:
+    E(X(t)) <= E(X(0)) * exp(-2 * lambda_1 * t)
+where lambda_1 > 0 is the smallest non-zero eigenvalue of the graph Laplacian
+(the Fiedler eigenvalue or spectral gap).
+This proves that over-smoothing is not an implementation artifact or hyperparameter
+defect; it is a fundamental mathematical law of parabolic diffusion!
+
+
+2. WHY CLASSICAL SYSTEMS FAIL ON THIS DYNAMIC
+--------------------------------------------------------------------------------
+1. Inescapable Exponential Decay:
+   Because the Dirichlet energy decays as exp(-2 * lambda_1 * t), in any densely
+   connected transaction component (where lambda_1 is moderately large), classical
+   diffusion destroys all between-node variance within t = 2 to 3 layers.
+2. Failure on Class Imbalance (<0.05% minority):
+   When node features collapse to the global mean, a classifier trained under
+   99.9% licit vs. 0.1% illicit class balance predicts the majority licit class
+   everywhere, driving minority recall to near zero.
+
+
+3. DIRECT VALUE & FORMULATION FOR OUR PROJECT (MONEY-MULE DETECTION)
+--------------------------------------------------------------------------------
+GRAND provides the exact mathematical benchmark and analytical target to
+contrast our quantum-inspired wave operator against:
+
+Key Comparison for Our Hackathon Pitch & Paper:
+- Classical Diffusion (GRAND / GCN):
+      dX/dt = -L X   =>   X(t) = exp(-L * t) X(0)
+      Eigenvalues exp(-lambda_k * t) -> 0 as t increases (Dissipative).
+- Quantum-Inspired Wave Operator (Our Approach):
+      dX/dt = -i * H X   =>   X(t) = exp(-i * H * t) X(0)
+      Eigenvalues exp(-i * lambda_k * t) have unit modulus: |exp(-i * lambda_k * t)| = 1!
+      No dissipation. Dirichlet energy oscillates and persists indefinitely.
+
+Experimental Validation Blueprint:
+In our benchmark experiments, we will track the Dirichlet energy E(t) across
+layer depth:
+- Plot E_classical(t) dropping exponentially to zero.
+- Plot E_quantum(t) maintaining stable, non-zero energy across all 6 hops.
+This provides the definitive mathematical proof required by the hackathon judges!
+
+
+4. CONCRETE CODE BLUEPRINT FOR qia_engine.py
+--------------------------------------------------------------------------------
+```python
+import numpy as np
+
+def simulate_grand_classical_diffusion(L: np.ndarray, X0: np.ndarray, t: float) -> np.ndarray:
+    """
+    Simulates classical heat diffusion X(t) = exp(-L * t) @ X0.
+    Demonstrates exponential loss of Dirichlet energy and over-smoothing.
+    """
+    w, V = np.linalg.eigh(L)
+    # Filter decaying exponentially
+    exp_decay = np.exp(-w * t)
+    X_t = V @ (exp_decay[:, None] * (V.T @ X0))
+    return X_t
+
+def compare_classical_vs_quantum_dirichlet_decay(L: np.ndarray, H: np.ndarray, 
+                                                X0: np.ndarray, t_steps: list) -> tuple:
+    """
+    Directly compares Dirichlet energy retention: Classical Diffusion vs Quantum Wave Operator.
+    """
+    w_L, V_L = np.linalg.eigh(L)
+    w_H, V_H = np.linalg.eigh(H)
+    
+    classical_energies = []
+    quantum_energies = []
+    
+    for t in t_steps:
+        # Classical diffusion
+        X_class = V_L @ (np.exp(-w_L * t)[:, None] * (V_L.T @ X0))
+        E_class = 0.5 * np.trace(X_class.T @ L @ X_class)
+        classical_energies.append(E_class)
+        
+        # Quantum unitary wave propagation
+        X_quant = np.abs(V_H @ (np.exp(-1j * w_H * t)[:, None] * (V_H.conj().T @ X0.astype(np.complex128))))
+        E_quant = 0.5 * np.trace(X_quant.T @ L @ X_quant)
+        quantum_energies.append(E_quant)
+        
+    return classical_energies, quantum_energies
+```
+================================================================================

@@ -1,0 +1,104 @@
+PAPER SUMMARY & PROJECT EXTRACTION ARCHIVE
+================================================================================
+Paper: Continuous-Time Quantum Walks on Dynamic and Directed Networks
+Authors: J. A. Izaac, J. B. Wang, P. C. Felloni, J. Mauger, and D. Perez
+Publication: Physical Review A, Vol. 92, Art. 062323 (2015)
+DOI/Ref: arXiv:1506.07927 / doi:10.1103/PhysRevA.92.062323
+Concept Track: Continuous-Time Quantum Walk (CTQW) Hamiltonian Dynamics
+================================================================================
+
+1. CORE MATHEMATICAL MECHANISM
+--------------------------------------------------------------------------------
+This paper extends continuous-time quantum walks to networks that are both
+directed and dynamically evolving over time—an exact physical analog of a live
+financial transaction stream where edges appear sequentially.
+
+Key Mathematical Contributions:
+1. Hermitian Directed Graph Laplacian:
+   To ensure strict probability conservation (unitarity) while respecting
+   in-degree and out-degree asymmetry, the authors define the directed Hamiltonian
+   using a modified Laplacian matrix:
+       H_{directed} = D_{out} - A_{directed}
+   To restore Hermiticity without losing the asymmetry of edge flow, they project
+   edge weights with a directional phase:
+       H = sum_{(j, k) in E} [ w_{jk} exp(i * theta_{jk}) |k><j| + h.c. ]
+   where theta_{jk} in (0, pi) tunes the directional bias. When theta_{jk} = pi/2,
+   exp(i * theta) = i, matching the chiral skew-symmetric formulation.
+
+2. Dynamic Time-Ordered Evolution:
+   For a network whose topology changes across discrete time intervals [t_m, t_{m+1}]
+   with Hamiltonian H_m:
+       U(t) = prod_{m} exp(-i * H_m * Delta t_m)  (time-ordered product)
+   The quantum state coherently preserves information across topological updates:
+       |psi(t_{m+1})> = exp(-i * H_m * Delta t_m) |psi(t_m)>
+
+3. Directional Flow Amplification:
+   The paper proves that directional quantum walks produce asymmetric transport
+   where probability accumulates preferentially in downstream sinks, creating
+   distinct spatial localization compared to classical dynamic Markov chains.
+
+
+2. WHY CLASSICAL SYSTEMS FAIL ON THIS DYNAMIC
+--------------------------------------------------------------------------------
+1. Temporal Disconnection in Static Snapshots:
+   Classical fraud detection typically slices data into static time buckets (e.g.,
+   10-minute batches) and runs classical graph algorithms on each bucket independently.
+   This destroys the temporal continuity of money moving across accounts.
+2. Classical Markov Chain Stagnation:
+   In a dynamic classical network, when an edge disappears, the Markov transition
+   matrix changes discontinuously, causing probability to diffuse uniformly into
+   ambient nodes, losing the trail of the laundering route.
+
+
+3. DIRECT VALUE & FORMULATION FOR OUR PROJECT (MONEY-MULE DETECTION)
+--------------------------------------------------------------------------------
+Izaac et al. directly maps to how transaction streams are ingested in banking:
+Transactions arrive as a timestamped edge sequence:
+    e_1 = (u_1 -> v_1, t_1), e_2 = (v_1 -> v_2, t_2), ..., e_k = (v_{k-1} -> sink, t_k)
+
+Implementation for Streaming Fraud Detection:
+1. Sequential Unitary Updates:
+   Instead of recomputing eigendecomposition from scratch for the entire bank
+   graph, maintain a local active state vector |psi(t)> for the suspicious cluster.
+2. For each incoming transfer (u -> v) with transaction amount w_{uv}:
+   - Construct the local 2-node or k-node Hamiltonian perturbation:
+         Delta H = w_{uv} * ( |v><u| * i - |u><v| * i )
+   - Apply the unitary update:
+         |psi_{new}> = exp(-i * Delta H * Delta t) |psi_{old}>
+3. Monitor the accumulated amplitude at candidate cash-out accounts. If a sudden
+   surge in |<sink|psi>|^2 occurs within a short rolling window, trigger an
+   immediate mule-ring alert!
+
+
+4. CONCRETE CODE BLUEPRINT FOR qia_engine.py
+--------------------------------------------------------------------------------
+```python
+import numpy as np
+import scipy.linalg
+
+def sequential_unitary_edge_update(psi: np.ndarray, u: int, v: int, 
+                                   weight: float, dt: float) -> np.ndarray:
+    """
+    Applies Izaac et al. local unitary time evolution for streaming transaction edge u -> v:
+    H_edge = i * weight * (|v><u| - |u><v|)
+    """
+    N = len(psi)
+    # Construct 2x2 local subspace unitary
+    # In the {u, v} subspace: H_sub = [[0, -i*w], [i*w, 0]] = w * sigma_y
+    # exp(-i * H_sub * dt) = exp(-i * w * dt * sigma_y) = cos(w*dt)*I - i*sin(w*dt)*sigma_y
+    #                      = [[cos(w*dt), -sin(w*dt)], [sin(w*dt), cos(w*dt)]]
+    theta = weight * dt
+    c = np.cos(theta)
+    s = np.sin(theta)
+    
+    psi_next = psi.copy()
+    psi_u = psi[u]
+    psi_v = psi[v]
+    
+    # Unitary rotation between u and v
+    psi_next[u] = c * psi_u - s * psi_v
+    psi_next[v] = s * psi_u + c * psi_v
+    
+    return psi_next
+```
+================================================================================

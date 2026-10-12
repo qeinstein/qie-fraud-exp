@@ -1,0 +1,97 @@
+PAPER SUMMARY & PROJECT EXTRACTION ARCHIVE
+================================================================================
+Paper: Quantum Computation and Decision Trees
+Authors: Edward Farhi and Sam Gutmann
+Publication: Physical Review A, Vol. 58, No. 2, pp. 915-920 (1998)
+DOI/Ref: arXiv:quant-ph/9706062 / Phys. Rev. A 58, 915 (1998)
+Concept Track: Continuous-Time Quantum Walk (CTQW) Hamiltonian Dynamics
+================================================================================
+
+1. CORE MATHEMATICAL MECHANISM
+--------------------------------------------------------------------------------
+This is the seminal foundational paper that introduced Continuous-Time Quantum
+Walks (CTQW) on arbitrary graph structures. Instead of a discrete coin operator,
+the walk is defined directly on an unweighted or weighted graph G = (V, E) with
+vertex set V (|V| = N) spanned by orthogonal basis states {|v> : v in V}.
+
+The Hamiltonian H is defined by the graph's adjacency matrix A:
+    <u|H|v> = -A_{uv}  (for u != v)
+    <v|H|v> = d_v     (the degree of vertex v, yielding graph Laplacian L = D - A)
+or simply H = -A.
+
+The time-evolution operator U(t) is governed strictly by the Schrödinger equation:
+    i * d|psi(t)>/dt = H |psi(t)>
+    |psi(t)> = U(t) |psi(0)> = exp(-i * H * t) |psi(0)>
+
+The probability of finding the quantum walker at node v at time t, given it
+started at node u at t=0, is given by the transition probability:
+    P_{u -> v}(t) = |<v| exp(-i * H * t) |u>|^2 = |U_{vu}(t)|^2
+
+Because H is Hermitian (H = H^\dagger), U(t) is unitary:
+    U(t)^\dagger U(t) = I
+    sum_v P_{u -> v}(t) = 1  (probability norm is strictly conserved for all t)
+
+
+2. WHY CLASSICAL SYSTEMS FAIL ON THIS DYNAMIC
+--------------------------------------------------------------------------------
+Classical random walks on decision trees and graph traversal problems evolve via
+diffusive Markov chains governed by stochastic transition matrices P = D^{-1} A:
+    p(t) = p(0) * P^t
+Classical probability spreads diffusively with spatial variance sigma^2(t) ~ t.
+On deep trees or multi-stage layered paths, classical random walks suffer from
+an exponential "getting lost" penalty: the walker gets exponentially trapped in
+intermediate branching branches, requiring exponential time (O(2^d)) to traverse
+a tree of depth d.
+
+In contrast, CTQWs spread ballistically with propagation distance ~ t (quadratic
+to exponential speedup across specific topologies). Quantum amplitudes along
+alternative traversal paths interfere:
+    Amplitude = sum_{path k} A_k * exp(i * theta_k)
+Constructive interference focuses amplitude onto exit nodes, while destructive
+interference suppresses probability in dead-end branches.
+
+
+3. DIRECT VALUE & FORMULATION FOR OUR PROJECT (MONEY-MULE DETECTION)
+--------------------------------------------------------------------------------
+In financial money-laundering schemes across Nigerian NIP rails, syndicates create
+"fan-out / fan-in" decision-tree-like structures:
+    - Root: Compromised Victim Account (Source)
+    - Intermediate Branches: 10 - 40 dummy student/dormant mule accounts (Layering)
+    - Leaves / Sinks: 1 - 3 cash-out terminals (POS agents, P2P crypto merchants)
+
+Classical detection engines (and classical random walks like Node2Vec) get
+diluted in the intermediate mule fan-out, treating each micro-transfer as
+unrelated noise.
+
+By implementing Farhi-Gutmann unitary evolution:
+1. Initialize the state at the suspicious entry account: |psi(0)> = |source>.
+2. Compute U(t) = exp(-i * H * t) across subgraphs of size N <= 50.
+3. The transition probability vector P_{source -> v}(t) = |<v|U(t)|source>|^2
+   evaluates how probability travels through the mule tree.
+4. Coordinated dispersal routes that reconverge at exit terminals cause
+   constructive amplitude amplification: P(t) at the cash-out sink spikes
+   sharply compared to random legitimate payments that disperse diffusively.
+
+
+4. CONCRETE CODE BLUEPRINT FOR qia_engine.py
+--------------------------------------------------------------------------------
+```python
+import numpy as np
+import scipy.linalg
+
+def ctqw_transition_matrix(H: np.ndarray, t: float) -> np.ndarray:
+    """
+    Computes Farhi-Gutmann unitary transition probability matrix P(t).
+    H: Hermitian Hamiltonian (N x N)
+    t: evolution time parameter
+    Returns: P where P[v, u] = |<v|exp(-i*H*t)|u>|^2
+    """
+    # Unitary matrix via matrix exponential or eigendecomposition
+    w, V = np.linalg.eigh(H)
+    # U(t) = V @ diag(exp(-1j * w * t)) @ V^\dagger
+    U_t = V @ np.diag(np.exp(-1j * w * t)) @ V.conj().T
+    # Transition probability P_{uv}(t) = |U_{vu}(t)|^2
+    P_t = np.abs(U_t) ** 2
+    return P_t
+```
+================================================================================

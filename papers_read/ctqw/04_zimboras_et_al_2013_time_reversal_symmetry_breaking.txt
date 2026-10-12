@@ -1,0 +1,107 @@
+PAPER SUMMARY & PROJECT EXTRACTION ARCHIVE
+================================================================================
+Paper: Quantum Transport Enhancement by Time-Reversal Symmetry Breaking
+Authors: Zoltán Zimborás, Mauro Faccin, Zoltán Kádár, James D. Whitfield,
+         Ben P. Lanyon, and Jacob Biamonte
+Publication: Scientific Reports (Nature Publishing Group), Vol. 3, Art. 2361 (2013)
+DOI/Ref: arXiv:1208.4049 / doi:10.1038/srep02361
+Concept Track: Continuous-Time Quantum Walk (CTQW) Hamiltonian Dynamics
+================================================================================
+
+1. CORE MATHEMATICAL MECHANISM
+--------------------------------------------------------------------------------
+This breakthrough paper solves the fundamental problem of how to represent
+directed graphs (digraphs) in continuous-time quantum walks while preserving
+unitarity and self-adjointness of the Hamiltonian.
+
+Standard Graph Walk: Real symmetric adjacency A implies time-reversal symmetry:
+    H^* = H  =>  P_{j -> k}(t) = P_{k -> j}(t)
+This means a standard quantum walk cannot distinguish between money flowing from
+Victim -> Mule vs. Mule -> Victim!
+
+The Solution: Complex Hermitian Hamiltonian Breaking Time-Reversal Symmetry
+The authors introduce complex phase factors on directed edges (chiral quantum walk):
+    H_{j, k} = A_{jk} * exp(i * phi_{jk})
+    where phi_{jk} = -phi_{kj} to ensure H = H^\dagger (Hermiticity).
+
+For an unweighted directed graph with adjacency A (where A_{jk} = 1 if edge j -> k
+exists and 0 otherwise), the canonical Hamiltonian is constructed as:
+    H = A_s + i * gamma * (A - A^T)
+where:
+    A_s = (A + A^T) / 2  (symmetrized undirected skeleton)
+    (A - A^T) is skew-symmetric (imaginary directed flow component)
+    gamma is the chirality / directional coupling parameter.
+
+Because H is complex Hermitian:
+1. All eigenvalues lambda_n of H remain strictly real (guaranteeing physical stability).
+2. Time-evolution operator U(t) = exp(-i * H * t) is strictly unitary: U^\dagger U = I.
+3. Time-reversal symmetry is broken:
+       P_{j -> k}(t) != P_{k -> j}(t)
+4. Quantum transport efficiency along the directed path is dramatically enhanced
+   over the reverse direction.
+
+
+2. WHY CLASSICAL SYSTEMS FAIL ON THIS DYNAMIC
+--------------------------------------------------------------------------------
+1. Symmetrization Trap in Classical Spectral Analysis:
+   Classical spectral graph methods (and standard GCNs) symmetrize the adjacency
+   matrix: A_sym = D^{-1/2} (A + A^T) D^{-1/2}. This destroys the causal arrow
+   of transaction flow. An account that only receives funds appears topologically
+   identical to an account that only disperses funds!
+2. Non-Unitary Digraph Embeddings:
+   Directly applying asymmetric adjacency A to classical random walks creates
+   absorbing sinks where probability accumulates irreversibly, masking transient
+   intermediate mule accounts.
+
+
+3. DIRECT VALUE & FORMULATION FOR OUR PROJECT (MONEY-MULE DETECTION)
+--------------------------------------------------------------------------------
+This paper provides the exact mathematical foundation for the Hermitian
+formulation in our proposal:
+    H = A_s + i * gamma * (A - A^T)
+
+In money-mule detection:
+1. Directionality is non-negotiable: Money moves strictly in one direction from
+   the compromised source -> mules -> exit sink.
+2. The skew-symmetric imaginary operator i * gamma * (A - A^T) forces the quantum
+   walker to propagate unidirectionally with high velocity toward the sink.
+3. Asymmetric Directional Ratio (Flow Invariant):
+   We define a directional anomaly metric for node pair (u, v):
+       Directional_Flux(u, v) = P_{u -> v}(t) - P_{v -> u}(t)
+   In a legitimate commercial trade loop, Directional_Flux cancels out over
+   bilateral counterparty relationships. In a money-mule layering route,
+   Directional_Flux is strictly positive and maximizes at the cash-out sink!
+
+
+4. CONCRETE CODE BLUEPRINT FOR qia_engine.py
+--------------------------------------------------------------------------------
+```python
+import numpy as np
+
+def construct_hermitian_hamiltonian(adj_directed: np.ndarray, gamma: float = 1.0) -> np.ndarray:
+    """
+    Constructs Zimborás-Faccin-Biamonte Hermitian Hamiltonian for directed graphs:
+    H = A_s + 1j * gamma * (A - A^T)
+    where A_s = (A + A^T) / 2
+    """
+    A = adj_directed.astype(np.float64)
+    A_s = 0.5 * (A + A.T)
+    A_skew = A - A.T
+    H = A_s + 1j * gamma * A_skew
+    
+    # Verify Hermiticity: H == H^\dagger
+    assert np.allclose(H, H.conj().T), "Hamiltonian must be Hermitian!"
+    return H
+
+def compute_chiral_directional_flux(H: np.ndarray, t: float) -> np.ndarray:
+    """
+    Computes asymmetric directional flux matrix:
+    Flux[u, v] = P_{u -> v}(t) - P_{v -> u}(t)
+    """
+    w, V = np.linalg.eigh(H)
+    U_t = V @ np.diag(np.exp(-1j * w * t)) @ V.conj().T
+    P_t = np.abs(U_t) ** 2
+    flux_matrix = P_t.T - P_t  # P_{u->v} - P_{v->u}
+    return flux_matrix
+```
+================================================================================

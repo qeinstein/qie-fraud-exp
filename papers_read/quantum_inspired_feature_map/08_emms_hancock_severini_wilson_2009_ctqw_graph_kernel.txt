@@ -1,0 +1,109 @@
+PAPER SUMMARY & PROJECT EXTRACTION ARCHIVE
+================================================================================
+Paper: Continuous-Time Quantum Walk Graph Kernels
+Authors: David Emms, Edwin R. Hancock, Simone Severini, and Richard C. Wilson
+Publication: Pattern Recognition, Vol. 42, No. 5, pp. 985-995 (2009)
+DOI/Ref: doi:10.1016/j.patcog.2008.10.024 / arXiv:math/0609653
+Concept Track: Quantum-Inspired Spectral Feature Map & Unitary Wave Operator
+================================================================================
+
+1. CORE MATHEMATICAL MECHANISM
+--------------------------------------------------------------------------------
+This classic paper was among the first to introduce graph kernels constructed
+directly from the unitary transition operator of continuous-time quantum walks.
+
+Mathematical Formulation:
+Given a graph G = (V, E) with adjacency A, the continuous-time quantum walk
+transition matrix at time t is:
+    U(t) = exp(-i * A * t)
+
+To measure the structural characteristics of a node u or the entire graph G:
+1. Wave Density Matrix:
+   The authors construct a density matrix from the unitary walk state:
+       rho(t) = (1 / |V|) * U(t) U(t)^\dagger = I / |V|  (trivially conserved)
+   To extract non-trivial relational structure, they evaluate the element-wise
+   probability matrix:
+       P(t) = |U(t)|^{\circ 2} = ( |U_{uv}(t)|^2 )_{u,v}
+2. Graph-Level CTQW Kernel:
+   For two graphs G_1 and G_2, the kernel compares the time-dependent interference
+   fingerprints:
+       K_{CTQW}(G_1, G_2) = int_0^T sum_{u, v} P_1(u, v; t) * P_2(pi(u), pi(v); t) dt
+3. Coherent Commute Time Metric:
+   The authors define a quantum commute time between nodes u and v based on
+   first-passage quantum amplitudes, showing that quantum interference prevents
+   the metric from flattening out in large graphs (unlike classical commute time,
+   which reduces to 1/d_u + 1/d_v).
+
+
+2. WHY CLASSICAL SYSTEMS FAIL ON THIS DYNAMIC
+--------------------------------------------------------------------------------
+1. Classical Commute Time Flattening:
+   In classical random walk kernels, the classical commute time C(u, v) between
+   two nodes in a large graph rapidly converges to a trivial degree-dependent
+   constant: C(u, v) -> 1/d_u + 1/d_v. It loses all sensitivity to the actual
+   path structure connecting u and v!
+2. Inability to Distinguish Non-Isomorphic Cospectral Graphs:
+   Classical random walks frequently produce identical random walk kernels on
+   cospectral graphs. Quantum walks, through complex phase interference in U(t),
+   readily distinguish many cospectral graph families.
+
+
+3. DIRECT VALUE & FORMULATION FOR OUR PROJECT (MONEY-MULE DETECTION)
+--------------------------------------------------------------------------------
+Emms et al.'s formulation gives us an exact, computable node embedding vector
+derived from the rows of the quantum probability matrix P(t):
+
+Node Feature Vector Extraction:
+For each account node u in a transaction subgraph:
+1. Compute P(t) = |exp(-i * H * t)|^2 across a multi-scale grid t in {0.5, 1.0, 2.0, 4.0}.
+2. Node Embedding Definition:
+   - Self-Return / Coherent Trap: P_{uu}(t) (captures cyclic money circulation)
+   - Dispersal Spread (Entropy of row u):
+         H_q(u, t) = -sum_v P_{uv}(t) * log_2(P_{uv}(t) + 1e-12)
+     In money-mule fan-outs, H_q(u, t) expands ballistically, much faster than
+     classical diffusion entropy.
+   - Peak Target Coherence: max_{v != u} P_{uv}(t) (identifies the intended
+     cash-out recipient).
+3. Stack these values across the time grid into an 8-to-16 dimensional feature
+   vector per account. This provides rich topological embeddings ready for XGBoost!
+
+
+4. CONCRETE CODE BLUEPRINT FOR qia_engine.py
+--------------------------------------------------------------------------------
+```python
+import numpy as np
+
+def extract_emms_ctqw_node_features(H: np.ndarray, time_grid: list = [0.5, 1.0, 2.0, 4.0]) -> np.ndarray:
+    """
+    Extracts Emms et al. quantum walk topological features for every node:
+    - Self-return probability P_{uu}(t)
+    - Row dispersion entropy H_q(u, t)
+    - Peak exit coherence max_{v != u} P_{uv}(t)
+    """
+    N = H.shape[0]
+    w, V = np.linalg.eigh(H)
+    features_per_node = []
+    
+    for t in time_grid:
+        U_t = V @ np.diag(np.exp(-1j * w * t)) @ V.conj().T
+        P_t = np.abs(U_t) ** 2  # Bistochastic transition matrix
+        
+        # 1. Self return
+        self_return = np.diag(P_t)
+        
+        # 2. Row entropy (dispersion rate)
+        # Add epsilon to prevent log(0)
+        p_safe = P_t + 1e-12
+        row_entropy = -np.sum(p_safe * np.log2(p_safe), axis=1)
+        
+        # 3. Peak exit coherence (exclude diagonal)
+        P_offdiag = P_t.copy()
+        np.fill_diagonal(P_offdiag, 0.0)
+        peak_exit = np.max(P_offdiag, axis=1)
+        
+        features_per_node.extend([self_return, row_entropy, peak_exit])
+        
+    # Shape: (N, len(time_grid) * 3)
+    return np.column_stack(features_per_node)
+```
+================================================================================

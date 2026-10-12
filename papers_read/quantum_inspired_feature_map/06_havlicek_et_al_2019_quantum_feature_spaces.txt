@@ -1,0 +1,103 @@
+PAPER SUMMARY & PROJECT EXTRACTION ARCHIVE
+================================================================================
+Paper: Supervised Learning with Quantum-Enhanced Feature Spaces
+Authors: Vojtěch Havlíček, Antonio D. Córcoles, Kristan Temme, Aram W. Harrow,
+         Abhinav Kandala, Jerry M. Chow, and Jay M. Gambetta
+Publication: Nature, Vol. 567, pp. 209-212 (2019)
+DOI/Ref: doi:10.1038/s41586-019-0980-2 / Nature (2019)
+Concept Track: Quantum-Inspired Spectral Feature Map & Unitary Wave Operator
+================================================================================
+
+1. CORE MATHEMATICAL MECHANISM
+--------------------------------------------------------------------------------
+This historic Nature paper introduces the mathematical foundation of Quantum
+Feature Maps and Quantum Kernel Estimation for classification.
+
+The Quantum Feature Map:
+Input classical data vectors x in R^d are mapped into quantum states (density
+matrices) in an exponentially large 2^N-dimensional Hilbert space:
+    Phi: x -> |Phi(x)><Phi(x)|
+via a non-linear unitary circuit U_{Phi}(x):
+    |Phi(x)> = U_{Phi}(x) |0>^{\otimes n}
+
+The circuit consists of single-qubit rotations intertwined with multi-qubit
+entangling interactions:
+    U_{Phi}(x) = prod_d [ exp(i * sum_{j < k} phi_{jk}(x) Z_j Z_k) * prod_j exp(i * phi_j(x) Z_j) * H^{\otimes n} ]
+where phi_j(x) = x_j and phi_{jk}(x) = (pi - x_j) * (pi - x_k).
+
+Quantum Kernel Estimation:
+The inner product between quantum feature states defines a valid positive
+semi-definite Mercer kernel:
+    K(x, x') = |<Phi(x)|Phi(x')>|^2 = Tr[ |Phi(x)><Phi(x)| * |Phi(x')><Phi(x')| ]
+Because the state space dimension scales as 2^n, the quantum kernel can map
+complex non-linear decision boundaries that are linearly inseparable in classical
+input space into linearly separable hyperplanes in Hilbert space!
+
+
+2. WHY CLASSICAL SYSTEMS FAIL ON THIS DYNAMIC
+--------------------------------------------------------------------------------
+1. Linear Inseparability of Coordinated Layering:
+   In banking fraud, individual account features (e.g., transaction amount,
+   account age, velocity) overlap almost entirely between legitimate high-net-worth
+   merchants and money mules. Classical linear kernels and tree-based decision
+   stumps struggle to separate them without causing severe false positives.
+2. Classical RBF Kernel Horizon:
+   Classical Radial Basis Function (RBF) kernels K_{RBF}(x, x') = exp(-gamma ||x - x'||^2)
+   suffer from the curse of dimensionality and the distance concentration phenomenon:
+   in high dimensions, all pairwise distances converge to a uniform constant,
+   destroying kernel discriminability.
+
+
+3. DIRECT VALUE & FORMULATION FOR OUR PROJECT (MONEY-MULE DETECTION)
+--------------------------------------------------------------------------------
+Havlíček et al.'s framework directly informs our Quantum-Inspired Feature Map:
+
+Quantum-Inspired Classical Emulation:
+Instead of requiring an actual quantum computer, we use the mathematical
+structure of Havlíček's ZZ-feature map and unitary wave evolution to construct
+a quantum-inspired spectral kernel computed classically:
+1. Feature Map Formulation for Transaction Subgraphs:
+   For two transaction subgraphs G_A and G_B (or two accounts within a subgraph):
+   Encode node telemetry into phase angles: theta_i = 2 * pi * sigmoid(velocity_i).
+   Map directed transfers into cross-phase entangling couplings:
+       phi_{ij} = (pi - theta_i) * (pi - theta_j).
+2. Quantum Kernel Gram Matrix:
+   Evaluate the quantum transition overlap between account feature vectors:
+       K_{QIA}(u, v) = |<psi_u| exp(-i * H * t) |psi_v>|^2
+3. Train a Kernel SVM or ridge classifier on K_{QIA}:
+   This draws max-margin hyperplanes that cleanly isolate the 0.05% illicit
+   minority from the licit majority with high precision.
+
+
+4. CONCRETE CODE BLUEPRINT FOR qia_engine.py
+--------------------------------------------------------------------------------
+```python
+import numpy as np
+
+def compute_quantum_inspired_kernel_matrix(feature_matrix: np.ndarray, 
+                                           H: np.ndarray, t: float = 1.0) -> np.ndarray:
+    """
+    Computes Havlíček et al. quantum-inspired kernel Gram matrix between node states
+    under unitary Hamiltonian evolution:
+    K[u, v] = |<psi_u| exp(-i * H * t) |psi_v>|^2
+    """
+    N = feature_matrix.shape[0]
+    # Unitary evolution operator
+    w, V = np.linalg.eigh(H)
+    U_t = V @ np.diag(np.exp(-1j * w * t)) @ V.conj().T
+    
+    # State vectors normalized in Hilbert space
+    norm = np.linalg.norm(feature_matrix, axis=1, keepdims=True) + 1e-12
+    normalized_feats = feature_matrix / norm
+    
+    # Evolved states: Psi_t = U_t @ normalized_feats (complex)
+    Psi_t = U_t @ normalized_feats.astype(np.complex128)
+    
+    # Gram matrix of overlaps
+    # Overlap[u, v] = <Psi_u | Psi_v>
+    Gram = Psi_t.conj() @ Psi_t.T
+    K = np.abs(Gram) ** 2  # Quantum transition probability kernel
+    
+    return K
+```
+================================================================================
