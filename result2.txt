@@ -1,0 +1,399 @@
+(venv) toheeb.ogunade@MPT-H203453J3K zecathon % python3 stress_test.py                                            
+HQW-AML v3 Expanded Adversarial Stress Test Suite
+Total workload: 7 scenarios x 3 hop depths = 21 test runs
+
+[1/7] SCENARIO: A: Invisible Mules (identical feature distributions)
+
+  [1/21] Generating graph for 2-hop layering (scenario: invisible_mules)...
+  [1/21] Graph constructed: 460 nodes, 2027 edges | Illicit: 36 (7.83%)
+  [1/21] (1/3) Evaluating Tabular Baseline (GBDT)...
+  [1/21]       Done in 0.35s -> PR-AUC: 0.1812, F1: 0.2857
+  [1/21] (2/3) Evaluating Classical GCN (2 layers)...
+  [1/21]    ... GCN training epoch 25/100 (loss=0.5340)
+  [1/21]    ... GCN training epoch 50/100 (loss=0.4824)
+  [1/21]    ... GCN training epoch 75/100 (loss=0.4063)
+  [1/21]    ... GCN training epoch 100/100 (loss=0.3371)
+  [1/21]       Done in 0.67s -> PR-AUC: 0.5341, F1: 0.4706
+  [1/21] (3/3) Evaluating HQW-AML v3 (Quantum-Inspired Engine)...
+  [1/21]    ... HQW-AML v3: constructing Hamiltonian & spectral decomposition
+  [1/21]    ... HQW-AML v3: evaluating inference & probability scoring
+  [1/21]       Done in 1.50s -> PR-AUC: 0.8948, F1: 0.7500
+  [1/21] 2-hop completed in 2.6s | Remaining runs: 20 | Total elapsed: 2.6s
+
+  [2/21] Generating graph for 4-hop layering (scenario: invisible_mules)...
+  [2/21] Graph constructed: 967 nodes, 4560 edges | Illicit: 71 (7.34%)
+  [2/21] (1/3) Evaluating Tabular Baseline (GBDT)...
+  [2/21]       Done in 0.28s -> PR-AUC: 0.0820, F1: 0.0500
+  [2/21] (2/3) Evaluating Classical GCN (4 layers)...
+  [2/21]    ... GCN training epoch 25/100 (loss=0.3362)
+  [2/21]    ... GCN training epoch 50/100 (loss=0.1870)
+  [2/21]    ... GCN training epoch 75/100 (loss=0.1142)
+  [2/21]    ... GCN training epoch 100/100 (loss=0.0727)
+  [2/21]       Done in 0.08s -> PR-AUC: 0.8998, F1: 0.7778
+  [2/21] (3/3) Evaluating HQW-AML v3 (Quantum-Inspired Engine)...
+  [2/21]    ... HQW-AML v3: constructing Hamiltonian & spectral decomposition
+  [2/21]    ... HQW-AML v3: evaluating inference & probability scoring
+  [2/21]       Done in 2.29s -> PR-AUC: 0.9124, F1: 0.7719
+  [2/21] 4-hop completed in 2.8s | Remaining runs: 19 | Total elapsed: 5.4s
+
+  [3/21] Generating graph for 6-hop layering (scenario: invisible_mules)...
+  [3/21] Graph constructed: 1717 nodes, 7508 edges | Illicit: 421 (24.52%)
+  [3/21] (1/3) Evaluating Tabular Baseline (GBDT)...
+  [3/21]       Done in 0.56s -> PR-AUC: 0.2237, F1: 0.1905
+  [3/21] (2/3) Evaluating Classical GCN (6 layers)...
+  [3/21]    ... GCN training epoch 25/100 (loss=0.6085)
+  [3/21]    ... GCN training epoch 50/100 (loss=0.2237)
+  [3/21]    ... GCN training epoch 75/100 (loss=0.1119)
+  [3/21]    ... GCN training epoch 100/100 (loss=0.0724)
+  [3/21]       Done in 0.42s -> PR-AUC: 0.9902, F1: 0.9408
+  [3/21] (3/3) Evaluating HQW-AML v3 (Quantum-Inspired Engine)...
+  [3/21]    ... HQW-AML v3: constructing Hamiltonian & spectral decomposition
+  [3/21]    ... HQW-AML v3: evaluating inference & probability scoring
+  [3/21]       Done in 2.36s -> PR-AUC: 0.9798, F1: 0.9315
+  [3/21] 6-hop completed in 3.5s | Remaining runs: 18 | Total elapsed: 8.9s
+
+--- Checkpoint: Results for Scenario 1 (invisible_mules) ---
+Model                  | 2-Hop PR-AUC | 4-Hop PR-AUC | 6-Hop PR-AUC
+Tabular (GBDT)         |       0.1812 |       0.0820 |       0.2237
+Classical GCN          |       0.5341 |       0.8998 |       0.9902
+HQW-AML v3             |       0.8948 |       0.9124 |       0.9798
+
+[2/7] SCENARIO: B: Camouflaged Rings (bilateral legitimate cover traffic)
+
+  [4/21] Generating graph for 2-hop layering (scenario: camouflaged_rings)...
+  [4/21] Graph constructed: 460 nodes, 2191 edges | Illicit: 36 (7.83%)
+  [4/21] (1/3) Evaluating Tabular Baseline (GBDT)...
+  [4/21]       Done in 0.22s -> PR-AUC: 0.1812, F1: 0.2857
+  [4/21] (2/3) Evaluating Classical GCN (2 layers)...
+  [4/21]    ... GCN training epoch 25/100 (loss=0.5993)
+  [4/21]    ... GCN training epoch 50/100 (loss=0.5458)
+  [4/21]    ... GCN training epoch 75/100 (loss=0.5176)
+  [4/21]    ... GCN training epoch 100/100 (loss=0.4917)
+  [4/21]       Done in 0.03s -> PR-AUC: 0.1903, F1: 0.2333
+  [4/21] (3/3) Evaluating HQW-AML v3 (Quantum-Inspired Engine)...
+  [4/21]    ... HQW-AML v3: constructing Hamiltonian & spectral decomposition
+  [4/21]    ... HQW-AML v3: evaluating inference & probability scoring
+  [4/21]       Done in 1.44s -> PR-AUC: 0.5106, F1: 0.3810
+  [4/21] 2-hop completed in 1.8s | Remaining runs: 17 | Total elapsed: 10.6s
+
+  [5/21] Generating graph for 4-hop layering (scenario: camouflaged_rings)...
+  [5/21] Graph constructed: 967 nodes, 4862 edges | Illicit: 71 (7.34%)
+  [5/21] (1/3) Evaluating Tabular Baseline (GBDT)...
+  [5/21]       Done in 0.29s -> PR-AUC: 0.0820, F1: 0.0500
+  [5/21] (2/3) Evaluating Classical GCN (4 layers)...
+  [5/21]    ... GCN training epoch 25/100 (loss=0.6268)
+  [5/21]    ... GCN training epoch 50/100 (loss=0.6051)
+  [5/21]    ... GCN training epoch 75/100 (loss=0.5827)
+  [5/21]    ... GCN training epoch 100/100 (loss=0.5437)
+  [5/21]       Done in 0.08s -> PR-AUC: 0.2195, F1: 0.3016
+  [5/21] (3/3) Evaluating HQW-AML v3 (Quantum-Inspired Engine)...
+  [5/21]    ... HQW-AML v3: constructing Hamiltonian & spectral decomposition
+  [5/21]    ... HQW-AML v3: evaluating inference & probability scoring
+  [5/21]       Done in 2.30s -> PR-AUC: 0.5623, F1: 0.5652
+  [5/21] 4-hop completed in 2.8s | Remaining runs: 16 | Total elapsed: 13.4s
+
+  [6/21] Generating graph for 6-hop layering (scenario: camouflaged_rings)...
+  [6/21] Graph constructed: 1717 nodes, 9416 edges | Illicit: 421 (24.52%)
+  [6/21] (1/3) Evaluating Tabular Baseline (GBDT)...
+  [6/21]       Done in 0.34s -> PR-AUC: 0.2237, F1: 0.1905
+  [6/21] (2/3) Evaluating Classical GCN (6 layers)...
+  [6/21]    ... GCN training epoch 25/100 (loss=0.6778)
+  [6/21]    ... GCN training epoch 50/100 (loss=0.6427)
+  [6/21]    ... GCN training epoch 75/100 (loss=0.6297)
+  [6/21]    ... GCN training epoch 100/100 (loss=0.5721)
+  [6/21]       Done in 0.35s -> PR-AUC: 0.7263, F1: 0.5976
+  [6/21] (3/3) Evaluating HQW-AML v3 (Quantum-Inspired Engine)...
+  [6/21]    ... HQW-AML v3: constructing Hamiltonian & spectral decomposition
+  [6/21]    ... HQW-AML v3: evaluating inference & probability scoring
+  [6/21]       Done in 2.15s -> PR-AUC: 0.8390, F1: 0.7220
+  [6/21] 6-hop completed in 3.0s | Remaining runs: 15 | Total elapsed: 16.4s
+
+--- Checkpoint: Results for Scenario 2 (camouflaged_rings) ---
+Model                  | 2-Hop PR-AUC | 4-Hop PR-AUC | 6-Hop PR-AUC
+Tabular (GBDT)         |       0.1812 |       0.0820 |       0.2237
+Classical GCN          |       0.1903 |       0.2195 |       0.7263
+HQW-AML v3             |       0.5106 |       0.5623 |       0.8390
+
+[3/7] SCENARIO: C: Needle in Haystack (extreme imbalance in large clusters)
+
+  [7/21] Generating graph for 2-hop layering (scenario: needle_haystack)...
+  [7/21] Graph constructed: 3772 nodes, 19364 edges | Illicit: 9 (0.24%)
+  [7/21] (1/3) Evaluating Tabular Baseline (GBDT)...
+  [7/21]       Done in 0.32s -> PR-AUC: 0.0224, F1: 0.0000
+  [7/21] (2/3) Evaluating Classical GCN (2 layers)...
+  [7/21]    ... GCN training epoch 25/100 (loss=0.3298)
+  [7/21]    ... GCN training epoch 50/100 (loss=0.1295)
+  [7/21]    ... GCN training epoch 75/100 (loss=0.0802)
+  [7/21]    ... GCN training epoch 100/100 (loss=0.0557)
+  [7/21]       Done in 0.58s -> PR-AUC: 0.3504, F1: 0.0571
+  [7/21] (3/3) Evaluating HQW-AML v3 (Quantum-Inspired Engine)...
+  [7/21]    ... HQW-AML v3: constructing Hamiltonian & spectral decomposition
+  [7/21]    ... HQW-AML v3: evaluating inference & probability scoring
+  [7/21]       Done in 3.02s -> PR-AUC: 0.5823, F1: 0.5714
+  [7/21] 2-hop completed in 4.3s | Remaining runs: 14 | Total elapsed: 20.7s
+
+  [8/21] Generating graph for 4-hop layering (scenario: needle_haystack)...
+  [8/21] Graph constructed: 4067 nodes, 20656 edges | Illicit: 62 (1.52%)
+  [8/21] (1/3) Evaluating Tabular Baseline (GBDT)...
+  [8/21]       Done in 0.59s -> PR-AUC: 0.0176, F1: 0.0000
+  [8/21] (2/3) Evaluating Classical GCN (4 layers)...
+  [8/21]    ... GCN training epoch 25/100 (loss=0.4131)
+  [8/21]    ... GCN training epoch 50/100 (loss=0.1868)
+  [8/21]    ... GCN training epoch 75/100 (loss=0.0868)
+  [8/21]    ... GCN training epoch 100/100 (loss=0.0610)
+  [8/21]       Done in 1.48s -> PR-AUC: 0.7257, F1: 0.5385
+  [8/21] (3/3) Evaluating HQW-AML v3 (Quantum-Inspired Engine)...
+  [8/21]    ... HQW-AML v3: constructing Hamiltonian & spectral decomposition
+  [8/21]    ... HQW-AML v3: evaluating inference & probability scoring
+  [8/21]       Done in 3.50s -> PR-AUC: 0.6851, F1: 0.7907
+  [8/21] 4-hop completed in 6.0s | Remaining runs: 13 | Total elapsed: 26.8s
+
+  [9/21] Generating graph for 6-hop layering (scenario: needle_haystack)...
+  [9/21] Graph constructed: 4028 nodes, 20145 edges | Illicit: 189 (4.69%)
+  [9/21] (1/3) Evaluating Tabular Baseline (GBDT)...
+  [9/21]       Done in 0.61s -> PR-AUC: 0.0439, F1: 0.0370
+  [9/21] (2/3) Evaluating Classical GCN (6 layers)...
+  [9/21]    ... GCN training epoch 25/100 (loss=0.2651)
+  [9/21]    ... GCN training epoch 50/100 (loss=0.0789)
+  [9/21]    ... GCN training epoch 75/100 (loss=0.0971)
+  [9/21]    ... GCN training epoch 100/100 (loss=0.0278)
+  [9/21]       Done in 2.22s -> PR-AUC: 0.9638, F1: 0.9343
+  [9/21] (3/3) Evaluating HQW-AML v3 (Quantum-Inspired Engine)...
+  [9/21]    ... HQW-AML v3: constructing Hamiltonian & spectral decomposition
+  [9/21]    ... HQW-AML v3: evaluating inference & probability scoring
+  [9/21]       Done in 3.49s -> PR-AUC: 0.9341, F1: 0.8906
+  [9/21] 6-hop completed in 6.8s | Remaining runs: 12 | Total elapsed: 33.5s
+
+--- Checkpoint: Results for Scenario 3 (needle_haystack) ---
+Model                  | 2-Hop PR-AUC | 4-Hop PR-AUC | 6-Hop PR-AUC
+Tabular (GBDT)         |       0.0224 |       0.0176 |       0.0439
+Classical GCN          |       0.3504 |       0.7257 |       0.9638
+HQW-AML v3             |       0.5823 |       0.6851 |       0.9341
+
+[4/7] SCENARIO: D: Kitchen Sink (all baseline stress vectors combined)
+
+  [10/21] Generating graph for 2-hop layering (scenario: kitchen_sink)...
+  [10/21] Graph constructed: 3773 nodes, 19408 edges | Illicit: 10 (0.27%)
+  [10/21] (1/3) Evaluating Tabular Baseline (GBDT)...
+  [10/21]       Done in 0.36s -> PR-AUC: 0.0079, F1: 0.0000
+  [10/21] (2/3) Evaluating Classical GCN (2 layers)...
+  [10/21]    ... GCN training epoch 25/100 (loss=0.5793)
+  [10/21]    ... GCN training epoch 50/100 (loss=0.5163)
+  [10/21]    ... GCN training epoch 75/100 (loss=0.4564)
+  [10/21]    ... GCN training epoch 100/100 (loss=0.3906)
+  [10/21]       Done in 0.58s -> PR-AUC: 0.0249, F1: 0.0311
+  [10/21] (3/3) Evaluating HQW-AML v3 (Quantum-Inspired Engine)...
+  [10/21]    ... HQW-AML v3: constructing Hamiltonian & spectral decomposition
+  [10/21]    ... HQW-AML v3: evaluating inference & probability scoring
+  [10/21]       Done in 3.05s -> PR-AUC: 0.0662, F1: 0.0000
+  [10/21] 2-hop completed in 4.4s | Remaining runs: 11 | Total elapsed: 37.9s
+
+  [11/21] Generating graph for 4-hop layering (scenario: kitchen_sink)...
+  [11/21] Graph constructed: 4032 nodes, 20706 edges | Illicit: 23 (0.57%)
+  [11/21] (1/3) Evaluating Tabular Baseline (GBDT)...
+  [11/21]       Done in 0.38s -> PR-AUC: 0.0047, F1: 0.0000
+  [11/21] (2/3) Evaluating Classical GCN (4 layers)...
+  [11/21]    ... GCN training epoch 25/100 (loss=0.5829)
+  [11/21]    ... GCN training epoch 50/100 (loss=0.5134)
+  [11/21]    ... GCN training epoch 75/100 (loss=0.4451)
+  [11/21]    ... GCN training epoch 100/100 (loss=0.3971)
+  [11/21]       Done in 1.33s -> PR-AUC: 0.0050, F1: 0.0088
+  [11/21] (3/3) Evaluating HQW-AML v3 (Quantum-Inspired Engine)...
+  [11/21]    ... HQW-AML v3: constructing Hamiltonian & spectral decomposition
+  [11/21]    ... HQW-AML v3: evaluating inference & probability scoring
+  [11/21]       Done in 3.46s -> PR-AUC: 0.0895, F1: 0.0000
+  [11/21] 4-hop completed in 5.6s | Remaining runs: 10 | Total elapsed: 43.5s
+
+  [12/21] Generating graph for 6-hop layering (scenario: kitchen_sink)...
+  [12/21] Graph constructed: 4469 nodes, 24027 edges | Illicit: 574 (12.84%)
+  [12/21] (1/3) Evaluating Tabular Baseline (GBDT)...
+  [12/21]       Done in 0.45s -> PR-AUC: 0.1297, F1: 0.1422
+  [12/21] (2/3) Evaluating Classical GCN (6 layers)...
+  [12/21]    ... GCN training epoch 25/100 (loss=0.6611)
+  [12/21]    ... GCN training epoch 50/100 (loss=0.6098)
+  [12/21]    ... GCN training epoch 75/100 (loss=0.5414)
+  [12/21]    ... GCN training epoch 100/100 (loss=0.4692)
+  [12/21]       Done in 2.54s -> PR-AUC: 0.6781, F1: 0.5607
+  [12/21] (3/3) Evaluating HQW-AML v3 (Quantum-Inspired Engine)...
+  [12/21]    ... HQW-AML v3: constructing Hamiltonian & spectral decomposition
+  [12/21]    ... HQW-AML v3: evaluating inference & probability scoring
+  [12/21]       Done in 3.69s -> PR-AUC: 0.8643, F1: 0.7559
+  [12/21] 6-hop completed in 7.3s | Remaining runs: 9 | Total elapsed: 50.8s
+
+--- Checkpoint: Results for Scenario 4 (kitchen_sink) ---
+Model                  | 2-Hop PR-AUC | 4-Hop PR-AUC | 6-Hop PR-AUC
+Tabular (GBDT)         |       0.0079 |       0.0047 |       0.1297
+Classical GCN          |       0.0249 |       0.0050 |       0.6781
+HQW-AML v3             |       0.0662 |       0.0895 |       0.8643
+
+[5/7] SCENARIO: E: Cyclic Wash Smurfing & Multi-Exit Splinters
+
+  [13/21] Generating graph for 2-hop layering (scenario: cyclic_smurfing)...
+  [13/21] Graph constructed: 562 nodes, 2571 edges | Illicit: 18 (3.2%)
+  [13/21] (1/3) Evaluating Tabular Baseline (GBDT)...
+  [13/21]       Done in 0.21s -> PR-AUC: 0.0644, F1: 0.0000
+  [13/21] (2/3) Evaluating Classical GCN (2 layers)...
+  [13/21]    ... GCN training epoch 25/100 (loss=0.5025)
+  [13/21]    ... GCN training epoch 50/100 (loss=0.3167)
+  [13/21]    ... GCN training epoch 75/100 (loss=0.2094)
+  [13/21]    ... GCN training epoch 100/100 (loss=0.1468)
+  [13/21]       Done in 0.03s -> PR-AUC: 0.2924, F1: 0.1818
+  [13/21] (3/3) Evaluating HQW-AML v3 (Quantum-Inspired Engine)...
+  [13/21]    ... HQW-AML v3: constructing Hamiltonian & spectral decomposition
+  [13/21]    ... HQW-AML v3: evaluating inference & probability scoring
+  [13/21]       Done in 1.50s -> PR-AUC: 0.8325, F1: 0.7273
+  [13/21] 2-hop completed in 1.9s | Remaining runs: 8 | Total elapsed: 52.7s
+
+  [14/21] Generating graph for 4-hop layering (scenario: cyclic_smurfing)...
+  [14/21] Graph constructed: 1112 nodes, 5405 edges | Illicit: 24 (2.16%)
+  [14/21] (1/3) Evaluating Tabular Baseline (GBDT)...
+  [14/21]       Done in 0.32s -> PR-AUC: 0.0301, F1: 0.0000
+  [14/21] (2/3) Evaluating Classical GCN (4 layers)...
+  [14/21]    ... GCN training epoch 25/100 (loss=0.1384)
+  [14/21]    ... GCN training epoch 50/100 (loss=0.0259)
+  [14/21]    ... GCN training epoch 75/100 (loss=0.0117)
+  [14/21]    ... GCN training epoch 100/100 (loss=0.0027)
+  [14/21]       Done in 0.13s -> PR-AUC: 1.0000, F1: 0.9412
+  [14/21] (3/3) Evaluating HQW-AML v3 (Quantum-Inspired Engine)...
+  [14/21]    ... HQW-AML v3: constructing Hamiltonian & spectral decomposition
+  [14/21]    ... HQW-AML v3: evaluating inference & probability scoring
+  [14/21]       Done in 2.45s -> PR-AUC: 0.6732, F1: 0.7059
+  [14/21] 4-hop completed in 3.0s | Remaining runs: 7 | Total elapsed: 55.7s
+
+  [15/21] Generating graph for 6-hop layering (scenario: cyclic_smurfing)...
+  [15/21] Graph constructed: 1662 nodes, 8145 edges | Illicit: 54 (3.25%)
+  [15/21] (1/3) Evaluating Tabular Baseline (GBDT)...
+  [15/21]       Done in 0.34s -> PR-AUC: 0.0329, F1: 0.0000
+  [15/21] (2/3) Evaluating Classical GCN (6 layers)...
+  [15/21]    ... GCN training epoch 25/100 (loss=0.4608)
+  [15/21]    ... GCN training epoch 50/100 (loss=0.1963)
+  [15/21]    ... GCN training epoch 75/100 (loss=0.1086)
+  [15/21]    ... GCN training epoch 100/100 (loss=0.0796)
+  [15/21]       Done in 0.30s -> PR-AUC: 1.0000, F1: 0.9500
+  [15/21] (3/3) Evaluating HQW-AML v3 (Quantum-Inspired Engine)...
+  [15/21]    ... HQW-AML v3: constructing Hamiltonian & spectral decomposition
+  [15/21]    ... HQW-AML v3: evaluating inference & probability scoring
+  [15/21]       Done in 2.09s -> PR-AUC: 0.8595, F1: 0.7368
+  [15/21] 6-hop completed in 2.9s | Remaining runs: 6 | Total elapsed: 58.6s
+
+--- Checkpoint: Results for Scenario 5 (cyclic_smurfing) ---
+Model                  | 2-Hop PR-AUC | 4-Hop PR-AUC | 6-Hop PR-AUC
+Tabular (GBDT)         |       0.0644 |       0.0301 |       0.0329
+Classical GCN          |       0.2924 |       1.0000 |       1.0000
+HQW-AML v3             |       0.8325 |       0.6732 |       0.8595
+
+[6/7] SCENARIO: F: Ghost Swarm & Commercial Super-Hub Infiltration (<0.2% imbalance)
+
+  [16/21] Generating graph for 2-hop layering (scenario: superhub_ghost_swarm)...
+  [16/21] Graph constructed: 4322 nodes, 22694 edges | Illicit: 6 (0.14%)
+  [16/21] (1/3) Evaluating Tabular Baseline (GBDT)...
+  [16/21]       Done in 0.32s -> PR-AUC: 0.0050, F1: 0.0000
+  [16/21] (2/3) Evaluating Classical GCN (2 layers)...
+  [16/21]    ... GCN training epoch 25/100 (loss=0.4567)
+  [16/21]    ... GCN training epoch 50/100 (loss=0.1817)
+  [16/21]    ... GCN training epoch 75/100 (loss=0.0816)
+  [16/21]    ... GCN training epoch 100/100 (loss=0.0504)
+  [16/21]       Done in 0.69s -> PR-AUC: 0.0907, F1: 0.1481
+  [16/21] (3/3) Evaluating HQW-AML v3 (Quantum-Inspired Engine)...
+  [16/21]    ... HQW-AML v3: constructing Hamiltonian & spectral decomposition
+  [16/21]    ... HQW-AML v3: evaluating inference & probability scoring
+  [16/21]       Done in 3.45s -> PR-AUC: 0.1385, F1: 0.0000
+  [16/21] 2-hop completed in 4.9s | Remaining runs: 5 | Total elapsed: 63.5s
+
+  [17/21] Generating graph for 4-hop layering (scenario: superhub_ghost_swarm)...
+  [17/21] Graph constructed: 4421 nodes, 23116 edges | Illicit: 8 (0.18%)
+  [17/21] (1/3) Evaluating Tabular Baseline (GBDT)...
+  [17/21]       Done in 0.33s -> PR-AUC: 0.0015, F1: 0.0000
+  [17/21] (2/3) Evaluating Classical GCN (4 layers)...
+  [17/21]    ... GCN training epoch 25/100 (loss=0.0265)
+  [17/21]    ... GCN training epoch 50/100 (loss=0.0003)
+  [17/21]    ... GCN training epoch 75/100 (loss=0.0002)
+  [17/21]    ... GCN training epoch 100/100 (loss=0.0002)
+  [17/21]       Done in 1.58s -> PR-AUC: 0.4712, F1: 0.5714
+  [17/21] (3/3) Evaluating HQW-AML v3 (Quantum-Inspired Engine)...
+  [17/21]    ... HQW-AML v3: constructing Hamiltonian & spectral decomposition
+  [17/21]    ... HQW-AML v3: evaluating inference & probability scoring
+  [17/21]       Done in 3.53s -> PR-AUC: 0.5284, F1: 0.5000
+  [17/21] 4-hop completed in 6.0s | Remaining runs: 4 | Total elapsed: 69.5s
+
+  [18/21] Generating graph for 6-hop layering (scenario: superhub_ghost_swarm)...
+  [18/21] Graph constructed: 4292 nodes, 22488 edges | Illicit: 12 (0.28%)
+  [18/21] (1/3) Evaluating Tabular Baseline (GBDT)...
+  [18/21]       Done in 0.33s -> PR-AUC: 0.0024, F1: 0.0000
+  [18/21] (2/3) Evaluating Classical GCN (6 layers)...
+  [18/21]    ... GCN training epoch 25/100 (loss=0.2703)
+  [18/21]    ... GCN training epoch 50/100 (loss=0.0182)
+  [18/21]    ... GCN training epoch 75/100 (loss=0.0072)
+  [18/21]    ... GCN training epoch 100/100 (loss=0.0041)
+  [18/21]       Done in 2.28s -> PR-AUC: 0.9437, F1: 0.6667
+  [18/21] (3/3) Evaluating HQW-AML v3 (Quantum-Inspired Engine)...
+  [18/21]    ... HQW-AML v3: constructing Hamiltonian & spectral decomposition
+  [18/21]    ... HQW-AML v3: evaluating inference & probability scoring
+  [18/21]       Done in 3.49s -> PR-AUC: 0.3726, F1: 0.5000
+  [18/21] 6-hop completed in 6.6s | Remaining runs: 3 | Total elapsed: 76.1s
+
+--- Checkpoint: Results for Scenario 6 (superhub_ghost_swarm) ---
+Model                  | 2-Hop PR-AUC | 4-Hop PR-AUC | 6-Hop PR-AUC
+Tabular (GBDT)         |       0.0050 |       0.0015 |       0.0024
+Classical GCN          |       0.0907 |       0.4712 |       0.9437
+HQW-AML v3             |       0.1385 |       0.5284 |       0.3726
+
+[7/7] SCENARIO: G: Temporal Mimicry & Splinter Layering (spoofed profiles)
+
+  [19/21] Generating graph for 2-hop layering (scenario: temporal_mimicry_splinters)...
+  [19/21] Graph constructed: 596 nodes, 2807 edges | Illicit: 12 (2.01%)
+  [19/21] (1/3) Evaluating Tabular Baseline (GBDT)...
+  [19/21]       Done in 0.25s -> PR-AUC: 0.4196, F1: 0.5000
+  [19/21] (2/3) Evaluating Classical GCN (2 layers)...
+  [19/21]    ... GCN training epoch 25/100 (loss=0.6381)
+  [19/21]    ... GCN training epoch 50/100 (loss=0.5623)
+  [19/21]    ... GCN training epoch 75/100 (loss=0.4746)
+  [19/21]    ... GCN training epoch 100/100 (loss=0.3994)
+  [19/21]       Done in 0.03s -> PR-AUC: 0.0334, F1: 0.0351
+  [19/21] (3/3) Evaluating HQW-AML v3 (Quantum-Inspired Engine)...
+  [19/21]    ... HQW-AML v3: constructing Hamiltonian & spectral decomposition
+  [19/21]    ... HQW-AML v3: evaluating inference & probability scoring
+  [19/21]       Done in 1.68s -> PR-AUC: 0.4784, F1: 0.0000
+  [19/21] 2-hop completed in 2.1s | Remaining runs: 2 | Total elapsed: 78.1s
+
+  [20/21] Generating graph for 4-hop layering (scenario: temporal_mimicry_splinters)...
+  [20/21] Graph constructed: 1208 nodes, 6097 edges | Illicit: 72 (5.96%)
+  [20/21] (1/3) Evaluating Tabular Baseline (GBDT)...
+  [20/21]       Done in 0.33s -> PR-AUC: 0.7555, F1: 0.7234
+  [20/21] (2/3) Evaluating Classical GCN (4 layers)...
+  [20/21]    ... GCN training epoch 25/100 (loss=0.6290)
+  [20/21]    ... GCN training epoch 50/100 (loss=0.5356)
+  [20/21]    ... GCN training epoch 75/100 (loss=0.4867)
+  [20/21]    ... GCN training epoch 100/100 (loss=0.4490)
+  [20/21]       Done in 0.16s -> PR-AUC: 0.2163, F1: 0.2569
+  [20/21] (3/3) Evaluating HQW-AML v3 (Quantum-Inspired Engine)...
+  [20/21]    ... HQW-AML v3: constructing Hamiltonian & spectral decomposition
+  [20/21]    ... HQW-AML v3: evaluating inference & probability scoring
+  [20/21]       Done in 1.94s -> PR-AUC: 0.9719, F1: 0.9130
+  [20/21] 4-hop completed in 2.6s | Remaining runs: 1 | Total elapsed: 80.7s
+
+  [21/21] Generating graph for 6-hop layering (scenario: temporal_mimicry_splinters)...
+  [21/21] Graph constructed: 1884 nodes, 9769 edges | Illicit: 132 (7.01%)
+  [21/21] (1/3) Evaluating Tabular Baseline (GBDT)...
+  [21/21]       Done in 0.33s -> PR-AUC: 0.7179, F1: 0.7184
+  [21/21] (2/3) Evaluating Classical GCN (6 layers)...
+  [21/21]    ... GCN training epoch 25/100 (loss=0.6935)
+  [21/21]    ... GCN training epoch 50/100 (loss=0.6866)
+  [21/21]    ... GCN training epoch 75/100 (loss=0.6517)
+  [21/21]    ... GCN training epoch 100/100 (loss=0.6276)
+  [21/21]       Done in 0.40s -> PR-AUC: 0.1839, F1: 0.1866
+  [21/21] (3/3) Evaluating HQW-AML v3 (Quantum-Inspired Engine)...
+  [21/21]    ... HQW-AML v3: constructing Hamiltonian & spectral decomposition
+  [21/21]    ... HQW-AML v3: evaluating inference & probability scoring
+  [21/21]       Done in 2.17s -> PR-AUC: 0.9340, F1: 0.8571
+  [21/21] 6-hop completed in 3.1s | Remaining runs: 0 | Total elapsed: 83.8s
+
+--- Checkpoint: Results for Scenario 7 (temporal_mimicry_splinters) ---
+Model                  | 2-Hop PR-AUC | 4-Hop PR-AUC | 6-Hop PR-AUC
+Tabular (GBDT)         |       0.4196 |       0.7555 |       0.7179
+Classical GCN          |       0.0334 |       0.2163 |       0.1839
+HQW-AML v3             |       0.4784 |       0.9719 |       0.9340
+
+All 7 stress test scenarios finished in 83.8s.
+
+(venv) toheeb.ogunade@MPT-H203453J3K zecathon % 
