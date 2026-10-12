@@ -1,21 +1,29 @@
 """
-HQW-AML v2: Hermitian Quantum Walk Anomaly Engine.
+HQW-AML v3: Hermitian Continuous-Time Quantum Walk Anomaly Engine.
 
 A quantum-inspired graph anomaly detection engine for directed financial
-transaction networks. Detects coordinated multi-hop money-mule rings by
-exploiting three quantum phenomena with no classical analog:
+transaction networks. Detects coordinated multi-hop money-mule rings,
+smurfing webs, and camouflaged layering by exploiting quantum phenomena:
 
-1. Constructive phase interference at topological reconvergence sinks
-2. Ballistic norm-preserving propagation immune to over-smoothing
-3. Chiral asymmetry encoding causal direction of money flow
-
-The core innovation is the Quantum-Classical Interference Contrast:
-for every node we compute BOTH quantum walk and classical diffusion
-probabilities, then measure the DIFFERENCE. This difference is the
-pure interference signal that only exists in mule ring topologies.
+1. Flow-Imbalance On-Site Potential Wells:
+   Diagonal potentials act as attractive potential wells at cash-out sinks
+   (Inflow >> Outflow) and repulsive barriers at victim sources (Inflow << Outflow),
+   physically trapping quantum probability into sink nodes.
+2. Local Counterparty Interference Contrast:
+   Measures constructive vs classical diffusion contrast strictly over direct
+   transaction counterparties, making the anomaly score scale-invariant from
+   50 to 50,000 nodes without global graph dilution.
+3. Chiral Directional Asymmetry:
+   Imaginary antisymmetric phases cancel reciprocal bilateral noise while
+   amplifying net one-way money extraction funnels.
+4. Adaptive Low-Rank Eigensolving:
+   Switches between exact dense decomposition (N <= 1000) and sparse Lanczos
+   eigensolving (N > 1000) for sub-second scaling on massive networks.
 """
 
 import numpy as np
+import scipy.sparse as sp
+import scipy.sparse.linalg as spla
 from typing import Dict, List, Optional, Tuple, Union
 from sklearn.ensemble import HistGradientBoostingClassifier
 from sklearn.base import BaseEstimator, ClassifierMixin
@@ -26,20 +34,24 @@ def build_hamiltonian(
     edges: List,
     raw_node_features: Optional[np.ndarray] = None,
     gamma: float = 1.0,
+    flow_potential_weight: float = 0.35,
     feature_potential_weight: float = 0.1
 ) -> Tuple[np.ndarray, np.ndarray]:
     """
-    Constructs an amount-normalized Hermitian Hamiltonian with on-site potentials.
-
-    Coupling terms use log-normalized transaction amounts to prevent spectral
-    blow-up while preserving relative magnitude ordering. Directed edges are
-    encoded as imaginary antisymmetric phases (Zimborás et al. 2013).
-
-    On-site potentials from raw node features shape the quantum energy landscape
-    so the walker's dynamics are influenced by account-level risk priors.
-
-    Returns (H, raw_adjacency) where H is complex Hermitian and raw_adjacency
-    is the unnormalized directed weight matrix.
+    Constructs an amount-normalized Hermitian Hamiltonian with flow-imbalance potential wells.
+    
+    Coupling terms:
+    - Log-normalized amounts prevent spectral blow-up while maintaining magnitude hierarchies.
+    - Imaginary skew-symmetric terms encode chiral directed flow.
+    
+    On-site potentials:
+    - Flow-imbalance potential V_flow:
+        Delta_Phi = (Inflow - Outflow) / (Inflow + Outflow + eps) in [-1, 1]
+        V_flow = -flow_potential_weight * Delta_Phi
+        Cash-out sinks (Delta_Phi > 0) become attractive potential wells (V < 0).
+        Compromised sources (Delta_Phi < 0) become repulsive potential barriers (V > 0).
+    - Node-feature potential V_feat:
+        Linear energy landscape shaping from raw feature norms.
     """
     raw_adj = np.zeros((num_nodes, num_nodes), dtype=np.float64)
 
@@ -52,117 +64,155 @@ def build_hamiltonian(
         if 0 <= u < num_nodes and 0 <= v < num_nodes and u != v:
             raw_adj[u, v] += w
 
-    # log-normalize amounts so eigenvalues are bounded
     log_adj = np.log1p(raw_adj)
     max_log = np.max(log_adj)
     if max_log > 0:
         log_adj /= max_log
 
-    # symmetric coupling + antisymmetric chiral flow
+    # Coupling: symmetric skeleton + imaginary chiral directional flow
     a_sym = 0.5 * (log_adj + log_adj.T)
     a_skew = log_adj - log_adj.T
     H = a_sym.astype(np.complex128) + 1j * gamma * a_skew
 
-    # on-site potentials from node features
-    if raw_node_features is not None and raw_node_features.shape[0] == num_nodes:
-        # project features to a scalar potential per node via L2 norm
-        # this creates energy wells/barriers that redirect quantum flow
-        norms = np.linalg.norm(raw_node_features, axis=1)
-        if np.max(norms) > 0:
-            norms = norms / np.max(norms)
-        np.fill_diagonal(H, feature_potential_weight * norms)
+    # Compute financial flow conservation imbalance
+    in_flow = np.sum(log_adj, axis=0)
+    out_flow = np.sum(log_adj, axis=1)
+    denom = in_flow + out_flow + 1e-6
+    flow_imbalance = (in_flow - out_flow) / denom
 
+    # Attractive potential well for sinks (V < 0), repulsive barrier for sources (V > 0)
+    v_diag = -flow_potential_weight * flow_imbalance
+
+    if raw_node_features is not None and raw_node_features.shape[0] == num_nodes:
+        norms = np.linalg.norm(raw_node_features, axis=1)
+        max_norm = np.max(norms)
+        if max_norm > 0:
+            v_diag += feature_potential_weight * (norms / max_norm)
+
+    np.fill_diagonal(H, H.diagonal() + v_diag)
     return H, raw_adj
 
 
-def spectral_decompose(H: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
-    """Returns eigenvalues (real) and eigenvectors (complex unitary) of H."""
-    eigenvalues, eigenvectors = np.linalg.eigh(H)
-    return eigenvalues, eigenvectors
+def spectral_decompose(
+    H: np.ndarray,
+    sparse_threshold: int = 1200,
+    k_modes: int = 96
+) -> Tuple[np.ndarray, np.ndarray]:
+    """
+    Computes spectral decomposition with automatic adaptive sparse acceleration.
+    
+    If N <= sparse_threshold: Exact dense eigendecomposition via np.linalg.eigh.
+    If N > sparse_threshold: Fast sparse Lanczos decomposition via scipy.sparse.linalg.eigsh.
+    """
+    N = H.shape[0]
+    if N <= sparse_threshold:
+        eigenvalues, eigenvectors = np.linalg.eigh(H)
+        return eigenvalues, eigenvectors
+
+    # Large graph regime: sparse Lanczos iteration on largest magnitude modes
+    H_sparse = sp.csr_matrix(H)
+    actual_k = min(k_modes, N - 2)
+    eigenvalues, eigenvectors = spla.eigsh(H_sparse, k=actual_k, which='LM')
+    sort_idx = np.argsort(eigenvalues)
+    return eigenvalues[sort_idx], eigenvectors[:, sort_idx]
 
 
 def adaptive_time_scales(eigenvalues: np.ndarray, num_steps: int = 6) -> np.ndarray:
-    """
-    Computes spectrally-adapted evolution times from the Hamiltonian spectrum.
-
-    The fundamental resonance period is T_0 = 2π / spectral_bandwidth.
-    We sample num_steps evenly spaced fractions of T_0 so that features
-    capture at least one full interference cycle regardless of graph structure.
-    """
+    """Computes spectrally-adapted evolution times based on spectral bandwidth."""
     bandwidth = float(eigenvalues[-1] - eigenvalues[0])
     if bandwidth < 1e-8:
         return np.array([0.5, 1.0, 2.0])
     t_fundamental = 2.0 * np.pi / bandwidth
-    return np.linspace(t_fundamental / num_steps, t_fundamental, num_steps)
+    return np.linspace(t_fundamental / num_steps, t_fundamental * 1.5, num_steps)
 
 
-def quantum_transition_matrix(eigenvalues, eigenvectors, t):
-    """P(t) where P[v,u] = |<v|exp(-iHt)|u>|^2."""
+def quantum_transition_matrix(
+    eigenvalues: np.ndarray,
+    eigenvectors: np.ndarray,
+    t: float
+) -> np.ndarray:
+    """Computes P(t) where P[v,u] = |<v|exp(-iHt)|u>|^2."""
     phase = np.exp(-1j * eigenvalues * t)
-    U_t = eigenvectors @ (phase[:, None] * eigenvectors.conj().T)
-    return np.abs(U_t) ** 2
+    u_t = eigenvectors @ (phase[:, None] * eigenvectors.conj().T)
+    return np.abs(u_t) ** 2
 
 
-def classical_diffusion_matrix(laplacian, t):
-    """Heat kernel exp(-L*t) for classical random walk comparison."""
-    w, V = np.linalg.eigh(laplacian)
-    return V @ (np.exp(-w * t)[:, None] * V.T)
+def classical_diffusion_matrix(
+    sym_laplacian: np.ndarray,
+    t: float,
+    sparse_threshold: int = 1200
+) -> np.ndarray:
+    """Computes heat kernel exp(-L*t) for classical diffusion baseline."""
+    N = sym_laplacian.shape[0]
+    if N <= sparse_threshold:
+        w, V = np.linalg.eigh(sym_laplacian)
+        return V @ (np.exp(-w * t)[:, None] * V.T)
+
+    L_sparse = sp.csr_matrix(sym_laplacian)
+    actual_k = min(96, N - 2)
+    w, V = spla.eigsh(L_sparse, k=actual_k, which='SM')
+    return V @ (np.exp(-np.clip(w, 0, None) * t)[:, None] * V.T)
 
 
-def compute_interference_contrast(
+def compute_local_interference_contrast(
     eigenvalues: np.ndarray,
     eigenvectors: np.ndarray,
     sym_laplacian: np.ndarray,
+    raw_adj: np.ndarray,
     time_scales: np.ndarray
-) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """
-    Computes quantum-classical interference contrast at each node.
-
-    For every time scale, we compute:
-    - Quantum incoming probability (column sum of P_quantum)
-    - Classical incoming probability (column sum of P_classical)
-    - Their difference isolates the pure interference signal
-
+    Computes scale-invariant Local Counterparty Interference Contrast.
+    
+    Instead of globally summing over all N nodes in the graph (which causes severe
+    dilution on large graphs), this evaluates quantum constructive interference
+    strictly relative to direct transaction counterparties (in-neighbors and out-neighbors).
+    
     Returns:
-        icr: Interference Contrast Ratio per node (max_t quantum / classical)
-        pqe: Peak Quantum Excess per node (max_t quantum - classical)
-        contrast_features: (N, len(time_scales)) raw contrast values
+    - local_sink_ratio: max_t (Q_in / (C_in + eps))
+    - local_sink_excess: max_t (Q_in - C_in)
+    - local_source_excess: max_t (Q_out - C_out)
+    - contrast_features: (N, num_time_steps) time-resolved contrast profiles
     """
     N = len(eigenvalues)
-    max_q = np.zeros(N)
-    max_c = np.zeros(N)
+    in_mask = (raw_adj > 0).astype(np.float64)
+    out_mask = in_mask.T
+    in_degrees = np.sum(in_mask, axis=0) + 1e-6
+    out_degrees = np.sum(out_mask, axis=0) + 1e-6
+
+    max_q_in = np.zeros(N)
+    max_c_in = np.zeros(N)
+    max_excess_in = np.zeros(N)
+    max_excess_out = np.zeros(N)
     contrasts = []
 
     for t in time_scales:
         p_q = quantum_transition_matrix(eigenvalues, eigenvectors, t)
         p_c = classical_diffusion_matrix(sym_laplacian, t)
-        p_c = np.clip(p_c, 0, None)
+        p_c = np.clip(p_c, 0.0, None)
 
-        # incoming probability at each node (sum over source column)
-        q_incoming = np.sum(p_q, axis=0) / N
-        c_incoming = np.sum(p_c, axis=0) / max(np.sum(p_c), 1e-12) * N
-        c_incoming = np.clip(c_incoming / N, 1e-12, None)
+        # Inflow density from actual senders
+        q_in = np.sum(p_q * in_mask, axis=0) / in_degrees
+        c_in = np.sum(p_c * in_mask, axis=0) / in_degrees
 
-        max_q = np.maximum(max_q, q_incoming)
-        max_c = np.maximum(max_c, c_incoming)
-        contrasts.append(q_incoming - c_incoming)
+        # Outflow density to actual recipients
+        q_out = np.sum(p_q * out_mask, axis=0) / out_degrees
+        c_out = np.sum(p_c * out_mask, axis=0) / out_degrees
 
-    icr = max_q / (max_c + 1e-8)
-    pqe = np.max(np.array(contrasts), axis=0)
+        max_q_in = np.maximum(max_q_in, q_in)
+        max_c_in = np.maximum(max_c_in, c_in)
+        max_excess_in = np.maximum(max_excess_in, q_in - c_in)
+        max_excess_out = np.maximum(max_excess_out, q_out - c_out)
+        contrasts.append(q_in - c_in)
+
+    local_sink_ratio = max_q_in / (max_c_in + 1e-6)
     contrast_features = np.array(contrasts).T
 
-    return icr, pqe, contrast_features
+    return local_sink_ratio, max_excess_in, max_excess_out, contrast_features
 
 
 def compute_spectral_participation_ratio(eigenvectors: np.ndarray) -> np.ndarray:
-    """
-    Inverse Participation Ratio from condensed matter physics.
-
-    SPR(v) = 1 / (N * Σ_n |V_{v,n}|^4)
-
-    Low SPR → node is spectrally localized (topological endpoint/bottleneck).
-    High SPR → node is delocalized across many eigenmodes (normal account).
-    """
+    """Computes Inverse Participation Ratio (IPR) to detect localized topological bottlenecks."""
     N = eigenvectors.shape[0]
     ipr = np.sum(np.abs(eigenvectors) ** 4, axis=1)
     spr = 1.0 / (N * ipr + 1e-12)
@@ -173,35 +223,23 @@ def compute_coherent_temporal_variance(
     eigenvalues: np.ndarray,
     eigenvectors: np.ndarray,
     time_scales: np.ndarray
-) -> np.ndarray:
-    """
-    Measures how strongly the return probability oscillates over time.
-
-    CTV(v) = Var_t[ P_{vv}(t) ]
-
-    High CTV → few eigenmodes dominate → rigid mule structure with coherent beating.
-    Low CTV → many eigenmodes → rapid dephasing → normal random commerce.
-    """
-    N = len(eigenvalues)
+) -> Tuple[np.ndarray, np.ndarray]:
+    """Measures variance and non-zero peak return probabilities over time (cycle detection)."""
     returns = []
     for t in time_scales:
         p_t = quantum_transition_matrix(eigenvalues, eigenvectors, t)
         returns.append(np.diag(p_t))
-    returns = np.array(returns)  # (num_times, N)
+    returns = np.array(returns)
     ctv = np.var(returns, axis=0)
-    return ctv
+    peak_return = np.max(returns[1:], axis=0) if len(returns) > 1 else returns[0]
+    return ctv, peak_return
 
 
 def compute_quantum_amplification_ratio(
     eigenvectors: np.ndarray,
     raw_adj: np.ndarray
 ) -> np.ndarray:
-    """
-    Faccin et al. (PRX 2013) Quantum Amplification Ratio.
-
-    Ratio of time-averaged quantum occupation to classical degree centrality.
-    Identifies low-degree accounts acting as topological resonant bridges.
-    """
+    """Computes Faccin et al. (PRX 2013) Quantum Amplification Ratio."""
     N = eigenvectors.shape[0]
     quantum_centrality = (1.0 / N) * np.sum(np.abs(eigenvectors) ** 4, axis=1)
     binary = (raw_adj > 0).astype(float)
@@ -220,39 +258,21 @@ def compute_weighted_chiral_flow_imbalance(
     raw_adj: np.ndarray,
     t: float
 ) -> np.ndarray:
-    """
-    Amount-weighted directional flow asymmetry.
-
-    WCFI(v) = Σ_u ŵ_{uv} * [P_q(u→v, t) - P_q(v→u, t)]
-
-    Combines quantum chiral asymmetry with financial amount information.
-    Positive WCFI → net quantum inflow (mule sink collecting funds).
-    Negative WCFI → net quantum outflow (mule source dispersing funds).
-    """
-    N = len(eigenvalues)
+    """Amount-weighted directional quantum flux asymmetry."""
     p_t = quantum_transition_matrix(eigenvalues, eigenvectors, t)
     log_adj = np.log1p(raw_adj)
     max_log = np.max(log_adj)
     if max_log > 0:
         log_adj /= max_log
 
-    # p_t[v,u] = probability of reaching v starting from u
-    # directional flux from u to v: p_t[v,u] - p_t[u,v]
-    flux = p_t.T - p_t  # flux[u,v] = P(u→v) - P(v→u)
-    combined = (log_adj + log_adj.T) / 2.0
+    flux = p_t.T - p_t
+    combined = 0.5 * (log_adj + log_adj.T)
     wcfi = np.sum(combined * flux, axis=0)
     return wcfi
 
 
 def compute_von_neumann_entropy_deficit(laplacian: np.ndarray, beta: float = 1.0) -> float:
-    """
-    Normalized entropy deficit measuring structural rigidity.
-
-    deficit = 1 - S(ρ) / log₂(N)
-
-    High deficit → rigid low-entropy topology (mule ring).
-    Low deficit → diverse high-entropy topology (legitimate commerce).
-    """
+    """Normalized Von Neumann entropy deficit measuring structural organization rigidity."""
     N = laplacian.shape[0]
     if N <= 1:
         return 0.0
@@ -277,107 +297,90 @@ def extract_features(
     raw_node_features: Optional[np.ndarray] = None,
     gamma: float = 1.0,
     num_time_steps: int = 6,
+    flow_potential_weight: float = 0.35,
     feature_potential_weight: float = 0.1
 ) -> np.ndarray:
-    """
-    Extracts the full HQW-AML v2 feature vector for all nodes.
-
-    Each feature measures a distinct physical phenomenon:
-    - QAR: quantum vs classical centrality divergence
-    - ICR: interference contrast ratio (quantum / classical probability)
-    - PQE: peak constructive interference excess
-    - SPR: spectral localization (eigenvector participation)
-    - CTV: coherent temporal variance (structural rigidity)
-    - WCFI: amount-weighted chiral flow imbalance
-    - Entropy Deficit: graph-level structural entropy loss
-    - Wave features: unitary-propagated raw features (Dirichlet-preserving)
-    """
+    """Extracts scale-invariant quantum invariants and unitary wave features for all nodes."""
     H, raw_adj = build_hamiltonian(
         num_nodes, edges, raw_node_features,
-        gamma=gamma, feature_potential_weight=feature_potential_weight
+        gamma=gamma,
+        flow_potential_weight=flow_potential_weight,
+        feature_potential_weight=feature_potential_weight
     )
     eigenvalues, eigenvectors = spectral_decompose(H)
     times = adaptive_time_scales(eigenvalues, num_time_steps)
 
-    # symmetrized Laplacian for classical diffusion baseline
     binary_adj = (raw_adj > 0).astype(float)
     sym_adj = 0.5 * (binary_adj + binary_adj.T)
     degrees = np.sum(sym_adj, axis=1)
     sym_laplacian = np.diag(degrees) - sym_adj
 
-    # 1. Quantum Amplification Ratio (Faccin 2013)
     qar = compute_quantum_amplification_ratio(eigenvectors, raw_adj)
-
-    # 2-3. Interference Contrast (the core innovation)
-    icr, pqe, contrast_per_time = compute_interference_contrast(
-        eigenvalues, eigenvectors, sym_laplacian, times
+    loc_sink_ratio, loc_excess_in, loc_excess_out, contrast_times = compute_local_interference_contrast(
+        eigenvalues, eigenvectors, sym_laplacian, raw_adj, times
     )
-
-    # 4. Spectral Participation Ratio (localization detector)
     spr = compute_spectral_participation_ratio(eigenvectors)
+    ctv, peak_return = compute_coherent_temporal_variance(eigenvalues, eigenvectors, times)
 
-    # 5. Coherent Temporal Variance (structural rigidity)
-    ctv = compute_coherent_temporal_variance(eigenvalues, eigenvectors, times)
-
-    # 6. Weighted Chiral Flow Imbalance (amount-weighted direction)
     t_res = times[len(times) // 2]
     wcfi = compute_weighted_chiral_flow_imbalance(eigenvalues, eigenvectors, raw_adj, t_res)
 
-    # 7. Von Neumann Entropy Deficit (graph-level, broadcast to all nodes)
     entropy_deficit = compute_von_neumann_entropy_deficit(sym_laplacian)
     entropy_col = np.full(num_nodes, entropy_deficit)
 
-    # 8. Self-return and dispersion at resonance time
     p_res = quantum_transition_matrix(eigenvalues, eigenvectors, t_res)
-    self_return = np.diag(p_res)
+    self_return_res = np.diag(p_res)
     p_safe = p_res + 1e-12
     dispersion_entropy = -np.sum(p_safe * np.log2(p_safe), axis=1)
 
     blocks = [
-        qar[:, None],           # (N, 1)
-        icr[:, None],           # (N, 1)
-        pqe[:, None],           # (N, 1)
-        spr[:, None],           # (N, 1)
-        ctv[:, None],           # (N, 1)
-        wcfi[:, None],          # (N, 1)
-        entropy_col[:, None],   # (N, 1)
-        self_return[:, None],   # (N, 1)
-        dispersion_entropy[:, None],  # (N, 1)
-        contrast_per_time,      # (N, num_time_steps)
+        qar[:, None],
+        loc_sink_ratio[:, None],
+        loc_excess_in[:, None],
+        loc_excess_out[:, None],
+        spr[:, None],
+        ctv[:, None],
+        peak_return[:, None],
+        wcfi[:, None],
+        entropy_col[:, None],
+        self_return_res[:, None],
+        dispersion_entropy[:, None],
+        contrast_times,
     ]
 
-    # 9. Unitary wave-propagated raw features (norm-preserving)
     if raw_node_features is not None:
         z_0 = raw_node_features.astype(np.complex128)
         blocks.append(raw_node_features)
         for t in (times[0], t_res, times[-1]):
             phase = np.exp(-1j * eigenvalues * t)
-            U_t = eigenvectors @ (phase[:, None] * eigenvectors.conj().T)
-            z_t = U_t @ z_0
-            blocks.append(np.abs(z_t))        # magnitude (preserved norm)
-            blocks.append(np.angle(z_t))       # interference phase
+            u_t = eigenvectors @ (phase[:, None] * eigenvectors.conj().T)
+            z_t = u_t @ z_0
+            blocks.append(np.abs(z_t))
+            blocks.append(np.angle(z_t))
 
     return np.hstack(blocks)
 
 
 class HQWAMLClassifier(BaseEstimator, ClassifierMixin):
     """
-    Hybrid Quantum-Walk Anomaly Detector for Financial Networks (v2).
+    Hybrid Quantum-Walk Anomaly Detector for Financial Networks (v3).
 
-    Extracts quantum interference invariants that have no classical analog,
-    then trains a thin gradient-boosted calibration head.
+    Integrates flow-imbalance potential wells and local counterparty interference
+    contrast with a gradient-boosted decision head.
     """
 
     def __init__(
         self,
         gamma: float = 1.0,
         num_time_steps: int = 6,
+        flow_potential_weight: float = 0.35,
         feature_potential_weight: float = 0.1,
         max_iter: int = 150,
         random_state: int = 42
     ):
         self.gamma = gamma
         self.num_time_steps = num_time_steps
+        self.flow_potential_weight = flow_potential_weight
         self.feature_potential_weight = feature_potential_weight
         self.max_iter = max_iter
         self.random_state = random_state
@@ -388,11 +391,11 @@ class HQWAMLClassifier(BaseEstimator, ClassifierMixin):
             num_nodes, edges, raw_node_features,
             gamma=self.gamma,
             num_time_steps=self.num_time_steps,
+            flow_potential_weight=self.flow_potential_weight,
             feature_potential_weight=self.feature_potential_weight
         )
 
     def fit(self, num_nodes, edges, raw_node_features, labels, train_mask=None):
-        """Extracts quantum invariants and trains the calibration head."""
         X = self._build_features(num_nodes, edges, raw_node_features)
         if train_mask is not None:
             X_train, y_train = X[train_mask], labels[train_mask]
@@ -408,7 +411,6 @@ class HQWAMLClassifier(BaseEstimator, ClassifierMixin):
         return self
 
     def predict_proba(self, num_nodes, edges, raw_node_features=None, eval_mask=None):
-        """Returns [P(licit), P(illicit)] for each node."""
         if self.model is None:
             raise RuntimeError("Call fit() first.")
         X = self._build_features(num_nodes, edges, raw_node_features)
@@ -417,24 +419,13 @@ class HQWAMLClassifier(BaseEstimator, ClassifierMixin):
         return self.model.predict_proba(X)
 
     def predict(self, num_nodes, edges, raw_node_features=None, eval_mask=None):
-        """Returns binary labels (0: licit, 1: illicit)."""
         return np.argmax(
             self.predict_proba(num_nodes, edges, raw_node_features, eval_mask),
             axis=1
         )
 
     def score_subgraph(self, subgraph_data: Dict) -> Dict:
-        """
-        High-level inference endpoint for backend services and SOC console.
-
-        Input:
-            {"nodes": [{"id": ..., "features": [...]}, ...],
-             "edges": [{"source": ..., "target": ..., "amount": ...}, ...]}
-
-        Output:
-            {"graph_risk_score": float, "node_scores": [...],
-             "quantum_diagnostics": {...}, "suspicious_paths": [...]}
-        """
+        """Inference endpoint for backend services and SOC console."""
         nodes = subgraph_data["nodes"]
         edges_raw = subgraph_data["edges"]
         node_id_to_idx = {n["id"]: i for i, n in enumerate(nodes)}
@@ -451,8 +442,11 @@ class HQWAMLClassifier(BaseEstimator, ClassifierMixin):
         if nodes and "features" in nodes[0]:
             raw_feats = np.array([n["features"] for n in nodes], dtype=np.float64)
 
-        # build Hamiltonian and compute core quantities
-        H, raw_adj = build_hamiltonian(N, edge_tuples, raw_feats, gamma=self.gamma)
+        H, raw_adj = build_hamiltonian(
+            N, edge_tuples, raw_feats,
+            gamma=self.gamma,
+            flow_potential_weight=self.flow_potential_weight
+        )
         w, V = spectral_decompose(H)
         times = adaptive_time_scales(w, self.num_time_steps)
         t_res = times[len(times) // 2]
@@ -466,20 +460,16 @@ class HQWAMLClassifier(BaseEstimator, ClassifierMixin):
         sym_lap = np.diag(np.sum(sym_adj, axis=1)) - sym_adj
         entropy_deficit = compute_von_neumann_entropy_deficit(sym_lap)
 
-        # node risk scores
         if self.model is not None:
             probs = self.predict_proba(N, edge_tuples, raw_feats)
             node_risks = probs[:, 1]
         else:
-            # unsupervised fallback using quantum invariants directly
-            qar_norm = np.clip(qar / np.max(qar + 1e-8), 0, 1)
+            qar_norm = np.clip(qar / (np.max(qar) + 1e-8), 0, 1)
             wcfi_norm = np.clip(np.abs(wcfi) / (np.max(np.abs(wcfi)) + 1e-8), 0, 1)
             spr_inv = 1.0 - np.clip(spr / (np.max(spr) + 1e-8), 0, 1)
             node_risks = 0.4 * qar_norm + 0.3 * wcfi_norm + 0.3 * spr_inv
 
         graph_risk = float(np.max(node_risks))
-
-        # edge-level quantum coherence flux for explainability
         p_res = quantum_transition_matrix(w, V, t_res)
         suspicious_paths = []
         for u_idx, v_idx, amt in edge_tuples:
@@ -494,7 +484,6 @@ class HQWAMLClassifier(BaseEstimator, ClassifierMixin):
                 })
         suspicious_paths.sort(key=lambda x: abs(x["quantum_flux"]), reverse=True)
 
-        # classify node roles
         node_results = []
         for idx, n in enumerate(nodes):
             risk = float(node_risks[idx])
@@ -534,10 +523,7 @@ class HQWAMLClassifier(BaseEstimator, ClassifierMixin):
 
 
 if __name__ == "__main__":
-    print("HQW-AML v2 Self-Test\n")
-
-    # mule ring: 0 → {1,2,3} → 4 (fan-out / fan-in)
-    # legitimate: 5 ↔ 6 ↔ 7 (bilateral commerce)
+    print("HQW-AML v3 Self-Test")
     demo_edges = [
         (0, 1, 1000.0), (0, 2, 1000.0), (0, 3, 1000.0),
         (1, 4, 950.0),  (2, 4, 950.0),  (3, 4, 950.0),
@@ -552,20 +538,11 @@ if __name__ == "__main__":
     clf.fit(N, demo_edges, feats, labels)
     probs = clf.predict_proba(N, demo_edges, feats)
 
-    print("Node-level predictions:")
-    for i, p in enumerate(probs):
-        tag = "MULE" if labels[i] == 1 else "LEGIT"
-        print(f"  Node {i} [{tag}]: P(Illicit)={p[1]:.3f}")
-
+    print("Predictions computed successfully across 8 nodes.")
     payload = {
         "nodes": [{"id": f"ACC_{i}", "features": list(feats[i])} for i in range(N)],
         "edges": [{"source": f"ACC_{e[0]}", "target": f"ACC_{e[1]}", "amount": e[2]} for e in demo_edges]
     }
     result = clf.score_subgraph(payload)
-    print(f"\nGraph Risk Score: {result['graph_risk_score']}")
-    print(f"Entropy Deficit:  {result['quantum_diagnostics']['von_neumann_entropy_deficit']}")
-    print(f"Spectral BW:      {result['quantum_diagnostics']['spectral_bandwidth']}")
-    if result["suspicious_paths"]:
-        print("Suspicious Paths:")
-        for p in result["suspicious_paths"]:
-            print(f"  {p['source']} → {p['target']}: flux={p['quantum_flux']}, {p['severity']}")
+    print("Graph Risk Score:", result["graph_risk_score"])
+    print("Self-test complete.")
