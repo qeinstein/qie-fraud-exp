@@ -36,14 +36,8 @@ def generate_synthetic_aml_graph(
     seed: int = 42
 ) -> dict:
     """
-    Generates a synthetic financial transaction graph matching Elliptic/AMLSim
-    topologies with coordinated multi-hop money-mule rings and background commerce.
-    
-    Args:
-        num_subgraphs: Number of connected transaction components to synthesize.
-        hop_depth: Depth of the layering chain (2, 4, or 6 hops).
-        imbalance_ratio: Proportion of illicit mule accounts (~0.02 = 2%).
-        seed: Random seed for reproducibility.
+    Generates a realistic financial transaction graph with overlapping raw features,
+    coordinated multi-hop money-mule rings, and background commercial commerce.
     """
     np.random.seed(seed)
     torch.manual_seed(seed)
@@ -53,6 +47,8 @@ def generate_synthetic_aml_graph(
     node_features = []
     
     current_node_id = 0
+    mule_node_ids = []
+    legit_node_ids = []
     
     for g_idx in range(num_subgraphs):
         is_illicit_ring = (np.random.rand() < imbalance_ratio * 4.0)
@@ -61,8 +57,9 @@ def generate_synthetic_aml_graph(
             source = current_node_id
             current_node_id += 1
             node_labels.append(1)
-            
-            feat_source = np.array([5.0, 0.9, 0.1, 0.8]) + np.random.randn(4) * 0.2
+            mule_node_ids.append(source)
+            # Overlapping raw features with slight subtle shift
+            feat_source = np.random.randn(4) * 0.8 + np.array([0.2, 0.1, 0.1, 0.2])
             node_features.append(feat_source)
             
             curr_layer = [source]
@@ -73,37 +70,48 @@ def generate_synthetic_aml_graph(
                     for _ in range(fan_out):
                         child = current_node_id
                         current_node_id += 1
-                        all_edges.append((parent, child, float(np.random.uniform(800.0, 1200.0))))
+                        all_edges.append((parent, child, float(np.random.uniform(500.0, 1500.0))))
                         next_layer.append(child)
                         node_labels.append(1)
-                        feat_mule = np.array([2.0, 0.5, 0.05, 0.7]) + np.random.randn(4) * 0.2
+                        mule_node_ids.append(child)
+                        feat_mule = np.random.randn(4) * 0.8 + np.array([0.1, 0.2, 0.05, 0.1])
                         node_features.append(feat_mule)
                 curr_layer = next_layer
                 
             sink = current_node_id
             current_node_id += 1
             node_labels.append(1)
-            feat_sink = np.array([10.0, 0.1, 0.95, 0.9]) + np.random.randn(4) * 0.2
+            mule_node_ids.append(sink)
+            feat_sink = np.random.randn(4) * 0.8 + np.array([0.3, 0.1, 0.2, 0.3])
             node_features.append(feat_sink)
             for m in curr_layer:
-                all_edges.append((m, sink, float(np.random.uniform(700.0, 1000.0))))
+                all_edges.append((m, sink, float(np.random.uniform(400.0, 1200.0))))
                 
         else:
             num_legit = hop_depth * 4
-            legit_nodes = list(range(current_node_id, current_node_id + num_legit))
+            cluster_legit = list(range(current_node_id, current_node_id + num_legit))
             current_node_id += num_legit
-            for l_id in legit_nodes:
+            for l_id in cluster_legit:
                 node_labels.append(0)
-                feat_legit = np.array([1.0, 0.3, 0.3, 0.1]) + np.random.randn(4) * 0.4
+                legit_node_ids.append(l_id)
+                feat_legit = np.random.randn(4) * 0.8
                 node_features.append(feat_legit)
                 
             for _ in range(num_legit * 2):
-                u = np.random.choice(legit_nodes)
-                v = np.random.choice(legit_nodes)
+                u = np.random.choice(cluster_legit)
+                v = np.random.choice(cluster_legit)
                 if u != v:
-                    all_edges.append((u, v, float(np.random.uniform(10.0, 200.0))))
+                    all_edges.append((u, v, float(np.random.uniform(20.0, 300.0))))
 
+    # Add realistic background cross-traffic between accounts
     total_nodes = current_node_id
+    if len(legit_node_ids) > 10:
+        for _ in range(total_nodes // 2):
+            u = np.random.choice(legit_node_ids)
+            v = np.random.choice(total_nodes)
+            if u != v:
+                all_edges.append((u, v, float(np.random.uniform(10.0, 100.0))))
+
     labels = np.array(node_labels, dtype=np.int64)
     features = np.array(node_features, dtype=np.float64)
 
