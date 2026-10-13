@@ -25,9 +25,12 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from sklearn.metrics import precision_recall_curve, auc, f1_score
 from sklearn.ensemble import HistGradientBoostingClassifier
-from qia_engine import HQWAMLClassifier, extract_features
+from qia_engine import HQWAMLClassifier
+from eval_utils import compute_metrics, groups_from_starts, group_split
+
+
+MIN_ILLICIT_RINGS = 6
 
 
 def generate_synthetic_aml_graph(
@@ -51,8 +54,16 @@ def generate_synthetic_aml_graph(
     mule_node_ids = []
     legit_node_ids = []
     
+    group_starts = []
+    illicit_spawned = 0
+
     for g_idx in range(num_subgraphs):
+        group_starts.append(current_node_id)
         is_illicit_ring = (np.random.rand() < imbalance_ratio * 4.0)
+        # Guarantee a minimum number of illicit rings so train/test both contain positives
+        if illicit_spawned + (num_subgraphs - g_idx) <= MIN_ILLICIT_RINGS:
+            is_illicit_ring = True
+        illicit_spawned += int(is_illicit_ring)
         
         if is_illicit_ring:
             source = current_node_id
@@ -108,8 +119,8 @@ def generate_synthetic_aml_graph(
     total_nodes = current_node_id
     if len(legit_node_ids) > 10:
         for _ in range(total_nodes // 2):
-            u = np.random.choice(legit_node_ids)
-            v = np.random.choice(total_nodes)
+            u = np.random.randint(total_nodes)
+            v = np.random.randint(total_nodes)
             if u != v:
                 all_edges.append((u, v, float(np.random.uniform(10.0, 100.0))))
 
@@ -120,7 +131,8 @@ def generate_synthetic_aml_graph(
         "num_nodes": total_nodes,
         "edges": all_edges,
         "features": features,
-        "labels": labels
+        "labels": labels,
+        "groups": groups_from_starts(group_starts, total_nodes)
     }
 
 
@@ -196,27 +208,12 @@ def train_and_eval_gcn(
         out = model(x_tensor, norm_adj_tensor)
         probs = F.softmax(out, dim=1)[:, 1].numpy()
         
-    test_probs = probs[test_mask]
-    test_y = labels[test_mask]
-    
-    precision, recall, _ = precision_recall_curve(test_y, test_probs)
-    pr_auc_val = float(auc(recall, precision))
-    
-    pred_labels = (test_probs > 0.5).astype(int)
-    f1_val = float(f1_score(test_y, pred_labels, zero_division=0))
-    
-    rec_indices = np.where(recall >= 0.95)[0]
-    if len(rec_indices) > 0:
-        target_idx = rec_indices[-1]
-        prec_at_95 = precision[target_idx]
-        fpr_val = float(1.0 - prec_at_95)
-    else:
-        fpr_val = 1.0
+    result = compute_metrics(labels[test_mask], probs[test_mask])
 
     del x_tensor, norm_adj_tensor, y_tensor, model, optimizer, norm_adj, adj
     gc.collect()
         
-    return pr_auc_val, f1_val, fpr_val
+    return result["pr_auc"], result["f1"], result["fpr_at_95rec"]
 
 
 def evaluate_tabular_baseline(
@@ -229,16 +226,8 @@ def evaluate_tabular_baseline(
     clf = HistGradientBoostingClassifier(max_iter=100, class_weight="balanced", random_state=42)
     clf.fit(features[train_mask], labels[train_mask])
     probs = clf.predict_proba(features[test_mask])[:, 1]
-    test_y = labels[test_mask]
-    
-    precision, recall, _ = precision_recall_curve(test_y, probs)
-    pr_auc_val = float(auc(recall, precision))
-    pred_y = (probs > 0.5).astype(int)
-    f1_val = float(f1_score(test_y, pred_y, zero_division=0))
-    
-    rec_indices = np.where(recall >= 0.95)[0]
-    fpr_val = float(1.0 - precision[rec_indices[-1]]) if len(rec_indices) > 0 else 1.0
-    return pr_auc_val, f1_val, fpr_val
+    r = compute_metrics(labels[test_mask], probs)
+    return r["pr_auc"], r["f1"], r["fpr_at_95rec"]
 
 
 def evaluate_hqw_engine(
@@ -253,22 +242,14 @@ def evaluate_hqw_engine(
     clf = HQWAMLClassifier(max_iter=100, random_state=42)
     clf.fit(num_nodes, edges, features, labels, train_mask=train_mask)
     probs = clf.predict_proba(num_nodes, edges, features, eval_mask=test_mask)[:, 1]
-    test_y = labels[test_mask]
-    
-    precision, recall, _ = precision_recall_curve(test_y, probs)
-    pr_auc_val = float(auc(recall, precision))
-    pred_y = (probs > 0.5).astype(int)
-    f1_val = float(f1_score(test_y, pred_y, zero_division=0))
-    
-    rec_indices = np.where(recall >= 0.95)[0]
-    fpr_val = float(1.0 - precision[rec_indices[-1]]) if len(rec_indices) > 0 else 1.0
-    return pr_auc_val, f1_val, fpr_val
+    r = compute_metrics(labels[test_mask], probs)
+    return r["pr_auc"], r["f1"], r["fpr_at_95rec"]
 
 
 def run_comprehensive_benchmark():
     """Runs comparative benchmark across 2-hop, 4-hop, and 6-hop depth regimes."""
     print("Running Zecathon 6.0 Comparative Benchmark Suite...")
-    print("Class Imbalance: ~2% minority illicit mule accounts\n")
+    print("Group-level train/test split (no ring straddles the split); illicit rings forced to >= 6\n")
     
     depths = [2, 4, 6]
     results = {}
@@ -283,13 +264,7 @@ def run_comprehensive_benchmark():
         )
         
         n = data["num_nodes"]
-        indices = np.arange(n)
-        np.random.shuffle(indices)
-        split = int(0.65 * n)
-        train_mask = np.zeros(n, dtype=bool)
-        test_mask = np.zeros(n, dtype=bool)
-        train_mask[indices[:split]] = True
-        test_mask[indices[split:]] = True
+        train_mask, test_mask = group_split(data["groups"], data["labels"], 0.65, seed=99)
         
         tab_pr_auc, tab_f1, _ = evaluate_tabular_baseline(
             data["features"], data["labels"], train_mask, test_mask
@@ -340,11 +315,7 @@ def run_comprehensive_benchmark():
     print(f"{'HQW-AML (Our Engine)':<26} | {hqw_2:<12.3f} | {hqw_4:<12.3f} | {hqw_6:<12.3f} | {hqw_drop:>10.1f}% (Resistant)")
     print("================================================================================\n")
     
-    print("Key Takeaways for Zecathon Presentation:")
-    print("1. Classical GCN experiences catastrophic over-smoothing as hop depth increases.")
-    print("2. Tabular models lack graph topological awareness and remain flat.")
-    print("3. HQW-AML preserves high PR-AUC across multi-hop laundering chains via unitary wave propagation.")
-
+    print("Note: single seed, synthetic data; see stress_test.py for multi-seed results and ablations.")
 
 if __name__ == "__main__":
     run_comprehensive_benchmark()

@@ -1,0 +1,144 @@
+HQW-AML v3 Adversarial Stress Test Suite (group-level split, multi-seed, ablations)
+7 scenarios x 3 depths x 3 seeds
+
+[1/7] SCENARIO: A: Invisible Mules (identical feature distributions)
+  depth=2 seed=0: 460 nodes, 2028 edges, 36 illicit (7.83%), test illicit=9
+  depth=2 seed=1: 462 nodes, 2127 edges, 30 illicit (6.49%), test illicit=10
+  depth=2 seed=2: 462 nodes, 2093 edges, 30 illicit (6.49%), test illicit=10
+  depth=4 seed=0: 1015 nodes, 4602 edges, 151 illicit (14.88%), test illicit=34
+  depth=4 seed=1: 1023 nodes, 4657 edges, 159 illicit (15.54%), test illicit=64
+  depth=4 seed=2: 1014 nodes, 4567 edges, 150 illicit (14.79%), test illicit=52
+  depth=6 seed=0: 1717 nodes, 7509 edges, 421 illicit (24.52%), test illicit=157
+  depth=6 seed=1: 1953 nodes, 8122 edges, 657 illicit (33.64%), test illicit=161
+  depth=6 seed=2: 1888 nodes, 8035 edges, 592 illicit (31.36%), test illicit=162
+
+--- A: Invisible Mules (identical feature distributions): PR-AUC mean +/- std over 3 seeds ---
+Model                                    |     2-hop     |     4-hop     |     6-hop    
+Tabular (raw features)                   | 0.075+/-0.020 | 0.142+/-0.027 | 0.269+/-0.026
+Tabular + structural stats               | 0.778+/-0.032 | 0.902+/-0.058 | 0.988+/-0.008
+Classical GCN                            | 0.056+/-0.023 | 0.248+/-0.163 | 0.876+/-0.031
+HQW-AML v3 (full)                        | 0.797+/-0.146 | 0.908+/-0.033 | 0.921+/-0.025
+HQW ablation: gamma=0 (no chirality)     | 0.530+/-0.058 | 0.891+/-0.044 | 0.946+/-0.018
+HQW ablation: no potential wells         | 0.780+/-0.139 | 0.873+/-0.055 | 0.918+/-0.015
+
+[2/7] SCENARIO: B: Camouflaged Rings (bilateral legitimate cover traffic)
+  depth=2 seed=0: 460 nodes, 2193 edges, 36 illicit (7.83%), test illicit=9
+  depth=2 seed=1: 462 nodes, 2259 edges, 30 illicit (6.49%), test illicit=10
+  depth=2 seed=2: 462 nodes, 2224 edges, 30 illicit (6.49%), test illicit=10
+  depth=4 seed=0: 1015 nodes, 5275 edges, 151 illicit (14.88%), test illicit=34
+  depth=4 seed=1: 1023 nodes, 5378 edges, 159 illicit (15.54%), test illicit=64
+  depth=4 seed=2: 1014 nodes, 5245 edges, 150 illicit (14.79%), test illicit=52
+  depth=6 seed=0: 1717 nodes, 9415 edges, 421 illicit (24.52%), test illicit=157
+  depth=6 seed=1: 1953 nodes, 11079 edges, 657 illicit (33.64%), test illicit=161
+  depth=6 seed=2: 1888 nodes, 10688 edges, 592 illicit (31.36%), test illicit=162
+
+--- B: Camouflaged Rings (bilateral legitimate cover traffic): PR-AUC mean +/- std over 3 seeds ---
+Model                                    |     2-hop     |     4-hop     |     6-hop    
+Tabular (raw features)                   | 0.075+/-0.020 | 0.142+/-0.027 | 0.269+/-0.026
+Tabular + structural stats               | 0.221+/-0.085 | 0.620+/-0.189 | 0.889+/-0.014
+Classical GCN                            | 0.050+/-0.010 | 0.132+/-0.033 | 0.508+/-0.092
+HQW-AML v3 (full)                        | 0.713+/-0.215 | 0.828+/-0.050 | 0.831+/-0.066
+HQW ablation: gamma=0 (no chirality)     | 0.453+/-0.195 | 0.777+/-0.063 | 0.821+/-0.060
+HQW ablation: no potential wells         | 0.702+/-0.205 | 0.826+/-0.038 | 0.853+/-0.045
+
+[3/7] SCENARIO: C: Needle in Haystack (extreme imbalance in large clusters)
+  depth=2 seed=0: 3612 nodes, 18499 edges, 31 illicit (0.86%), test illicit=12
+  depth=2 seed=1: 3768 nodes, 19136 edges, 28 illicit (0.74%), test illicit=10
+  depth=2 seed=2: 3617 nodes, 18491 edges, 29 illicit (0.8%), test illicit=8
+  depth=4 seed=0: 3980 nodes, 19978 edges, 151 illicit (3.79%), test illicit=37
+  depth=4 seed=1: 3757 nodes, 18705 edges, 138 illicit (3.67%), test illicit=51
+  depth=4 seed=2: 3737 nodes, 18755 edges, 113 illicit (3.02%), test illicit=42
+  depth=6 seed=0: 4284 nodes, 20269 edges, 640 illicit (14.94%), test illicit=414
+  depth=6 seed=1: 4031 nodes, 19461 edges, 428 illicit (10.62%), test illicit=178
+  depth=6 seed=2: 4637 nodes, 21594 edges, 842 illicit (18.16%), test illicit=464
+
+--- C: Needle in Haystack (extreme imbalance in large clusters): PR-AUC mean +/- std over 3 seeds ---
+Model                                    |     2-hop     |     4-hop     |     6-hop    
+Tabular (raw features)                   | 0.015+/-0.005 | 0.036+/-0.010 | 0.212+/-0.061
+Tabular + structural stats               | 0.460+/-0.214 | 0.737+/-0.049 | 0.982+/-0.013
+Classical GCN                            | 0.012+/-0.006 | 0.094+/-0.031 | 0.826+/-0.168
+HQW-AML v3 (full)                        | 0.358+/-0.046 | 0.354+/-0.120 | 0.888+/-0.011
+HQW ablation: gamma=0 (no chirality)     | 0.519+/-0.185 | 0.697+/-0.043 | 0.877+/-0.071
+HQW ablation: no potential wells         | 0.324+/-0.050 | 0.319+/-0.123 | 0.889+/-0.017
+
+[4/7] SCENARIO: D: Kitchen Sink (all baseline stress vectors combined)
+  depth=2 seed=0: 3693 nodes, 19227 edges, 112 illicit (3.03%), test illicit=56
+  depth=2 seed=1: 3818 nodes, 19707 edges, 95 illicit (2.49%), test illicit=42
+  depth=2 seed=2: 3651 nodes, 18859 edges, 63 illicit (1.73%), test illicit=24
+  depth=4 seed=0: 3905 nodes, 20141 edges, 78 illicit (2.0%), test illicit=20
+  depth=4 seed=1: 3588 nodes, 18408 edges, 52 illicit (1.45%), test illicit=28
+  depth=4 seed=2: 3649 nodes, 18829 edges, 134 illicit (3.67%), test illicit=77
+  depth=6 seed=0: 3918 nodes, 20514 edges, 210 illicit (5.36%), test illicit=190
+  depth=6 seed=1: 3753 nodes, 19467 edges, 150 illicit (4.0%), test illicit=55
+  depth=6 seed=2: 4554 nodes, 25077 edges, 882 illicit (19.37%), test illicit=381
+
+--- D: Kitchen Sink (all baseline stress vectors combined): PR-AUC mean +/- std over 3 seeds ---
+Model                                    |     2-hop     |     4-hop     |     6-hop    
+Tabular (raw features)                   | 0.030+/-0.012 | 0.034+/-0.023 | 0.130+/-0.068
+Tabular + structural stats               | 0.277+/-0.151 | 0.114+/-0.089 | 0.454+/-0.319
+Classical GCN                            | 0.029+/-0.013 | 0.032+/-0.021 | 0.137+/-0.102
+HQW-AML v3 (full)                        | 0.650+/-0.279 | 0.463+/-0.146 | 0.791+/-0.079
+HQW ablation: gamma=0 (no chirality)     | 0.819+/-0.081 | 0.574+/-0.092 | 0.782+/-0.132
+HQW ablation: no potential wells         | 0.653+/-0.273 | 0.458+/-0.139 | 0.755+/-0.131
+
+[5/7] SCENARIO: E: Cyclic Wash Smurfing & Multi-Exit Splinters
+  depth=2 seed=0: 566 nodes, 2493 edges, 54 illicit (9.54%), test illicit=18
+  depth=2 seed=1: 566 nodes, 2505 edges, 54 illicit (9.54%), test illicit=18
+  depth=2 seed=2: 566 nodes, 2498 edges, 54 illicit (9.54%), test illicit=18
+  depth=4 seed=0: 1096 nodes, 5180 edges, 72 illicit (6.57%), test illicit=24
+  depth=4 seed=1: 1096 nodes, 5150 edges, 72 illicit (6.57%), test illicit=24
+  depth=4 seed=2: 1096 nodes, 5178 edges, 72 illicit (6.57%), test illicit=24
+  depth=6 seed=0: 1644 nodes, 7892 edges, 108 illicit (6.57%), test illicit=36
+  depth=6 seed=1: 1644 nodes, 8002 edges, 108 illicit (6.57%), test illicit=36
+  depth=6 seed=2: 1644 nodes, 7933 edges, 108 illicit (6.57%), test illicit=36
+
+--- E: Cyclic Wash Smurfing & Multi-Exit Splinters: PR-AUC mean +/- std over 3 seeds ---
+Model                                    |     2-hop     |     4-hop     |     6-hop    
+Tabular (raw features)                   | 0.103+/-0.016 | 0.077+/-0.015 | 0.075+/-0.011
+Tabular + structural stats               | 0.772+/-0.051 | 0.828+/-0.038 | 0.848+/-0.048
+Classical GCN                            | 0.157+/-0.048 | 0.133+/-0.074 | 0.375+/-0.223
+HQW-AML v3 (full)                        | 0.835+/-0.056 | 0.740+/-0.098 | 0.732+/-0.076
+HQW ablation: gamma=0 (no chirality)     | 0.900+/-0.038 | 0.766+/-0.048 | 0.851+/-0.027
+HQW ablation: no potential wells         | 0.841+/-0.034 | 0.741+/-0.059 | 0.769+/-0.071
+
+[6/7] SCENARIO: F: Ghost Swarm & Commercial Super-Hub Infiltration
+  depth=2 seed=0: 4123 nodes, 21629 edges, 18 illicit (0.44%), test illicit=6
+  depth=2 seed=1: 4113 nodes, 21532 edges, 18 illicit (0.44%), test illicit=6
+  depth=2 seed=2: 4077 nodes, 21346 edges, 18 illicit (0.44%), test illicit=6
+  depth=4 seed=0: 4271 nodes, 22314 edges, 24 illicit (0.56%), test illicit=8
+  depth=4 seed=1: 4104 nodes, 21375 edges, 24 illicit (0.58%), test illicit=8
+  depth=4 seed=2: 4199 nodes, 21895 edges, 24 illicit (0.57%), test illicit=8
+  depth=6 seed=0: 4152 nodes, 21674 edges, 36 illicit (0.87%), test illicit=12
+  depth=6 seed=1: 4112 nodes, 21415 edges, 36 illicit (0.88%), test illicit=12
+  depth=6 seed=2: 4272 nodes, 22325 edges, 36 illicit (0.84%), test illicit=12
+
+--- F: Ghost Swarm & Commercial Super-Hub Infiltration: PR-AUC mean +/- std over 3 seeds ---
+Model                                    |     2-hop     |     4-hop     |     6-hop    
+Tabular (raw features)                   | 0.009+/-0.004 | 0.017+/-0.006 | 0.008+/-0.000
+Tabular + structural stats               | 0.185+/-0.037 | 0.317+/-0.167 | 0.523+/-0.238
+Classical GCN                            | 0.112+/-0.148 | 0.018+/-0.010 | 0.030+/-0.003
+HQW-AML v3 (full)                        | 0.075+/-0.028 | 0.260+/-0.205 | 0.304+/-0.109
+HQW ablation: gamma=0 (no chirality)     | 0.356+/-0.143 | 0.226+/-0.019 | 0.437+/-0.157
+HQW ablation: no potential wells         | 0.092+/-0.044 | 0.158+/-0.106 | 0.326+/-0.143
+
+[7/7] SCENARIO: G: Temporal Mimicry & Splinter Layering (spoofed profiles)
+  depth=2 seed=0: 588 nodes, 2803 edges, 36 illicit (6.12%), test illicit=12
+  depth=2 seed=1: 588 nodes, 2809 edges, 36 illicit (6.12%), test illicit=12
+  depth=2 seed=2: 588 nodes, 2806 edges, 36 illicit (6.12%), test illicit=12
+  depth=4 seed=0: 1212 nodes, 6194 edges, 108 illicit (8.91%), test illicit=36
+  depth=4 seed=1: 1212 nodes, 6164 edges, 108 illicit (8.91%), test illicit=36
+  depth=4 seed=2: 1212 nodes, 6160 edges, 108 illicit (8.91%), test illicit=36
+  depth=6 seed=0: 2052 nodes, 11196 edges, 396 illicit (19.3%), test illicit=132
+  depth=6 seed=1: 2052 nodes, 11255 edges, 396 illicit (19.3%), test illicit=132
+  depth=6 seed=2: 2052 nodes, 11181 edges, 396 illicit (19.3%), test illicit=132
+
+--- G: Temporal Mimicry & Splinter Layering (spoofed profiles): PR-AUC mean +/- std over 3 seeds ---
+Model                                    |     2-hop     |     4-hop     |     6-hop    
+Tabular (raw features)                   | 0.623+/-0.126 | 0.860+/-0.081 | 0.885+/-0.045
+Tabular + structural stats               | 0.758+/-0.024 | 0.931+/-0.027 | 0.972+/-0.007
+Classical GCN                            | 0.092+/-0.007 | 0.099+/-0.015 | 0.177+/-0.023
+HQW-AML v3 (full)                        | 0.876+/-0.018 | 0.982+/-0.010 | 0.987+/-0.001
+HQW ablation: gamma=0 (no chirality)     | 0.828+/-0.121 | 0.969+/-0.023 | 0.980+/-0.005
+HQW ablation: no potential wells         | 0.848+/-0.034 | 0.953+/-0.028 | 0.982+/-0.003
+
+Finished in 571.0s.
