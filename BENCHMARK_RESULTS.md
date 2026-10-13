@@ -262,3 +262,35 @@ per timestep graph (rank-192 spectrum, unweighted edges since Elliptic has no am
 5. Not evaluated: AMLSim / IBM AML (no public file available without an account), amount-weighted
    edges (Elliptic has none), and a full-graph (non-per-timestep) HQW run. GNN searches were limited
    to 10 configurations each.
+
+---
+
+## Run 8 — HQW-AML v4: quantum-walk risk propagation (Elliptic, `elliptic_v4.py`)
+
+Idea: label homophily on Elliptic is strong (P(next tx illicit | this illicit) = 0.52 vs 0.023 after a licit
+tx), so instead of structure-only features the walk `exp(-iHt)` carries a first-stage risk score across the
+directed graph (sparse Krylov, no mode truncation). Risk is out-of-fold on the training period (timestep-grouped
+folds) and from a train-only model on the test period; no test label is used. Same tuned XGBoost recipe as Run 7,
+5 seeds. Raw results: `results/elliptic_v4_results.json`.
+
+| Feature set (XGBoost) | PR-AUC | F1 | FPR@95Rec | PR-AUC (t>=43) |
+|:---|:---:|:---:|:---:|:---:|
+| raw | 0.803 | 0.783 | 0.335 | 0.045 |
+| raw + risk (stacking only) | 0.802 | 0.823 | 0.446 | 0.044 |
+| raw + risk + neighbour means (classical) | 0.808 | 0.817 | 0.424 | 0.049 |
+| raw + risk + heat diffusion (classical) | 0.808 | 0.816 | 0.395 | 0.051 |
+| raw + risk + neighbour + heat (classical) | **0.812** | 0.822 | 0.363 | 0.053 |
+| raw + risk + quantum walk, gamma=1 (HQW v4) | 0.805 | 0.814 | 0.352 | 0.050 |
+| raw + risk + quantum walk, gamma=0 | 0.805 | 0.806 | 0.375 | 0.046 |
+| raw + risk + quantum walk, no wells | 0.803 | 0.804 | 0.381 | 0.044 |
+| raw + risk + quantum + neighbour + heat | 0.810 | 0.817 | 0.379 | 0.051 |
+
+### Findings
+1. Risk propagation helps only marginally (+0.002 to +0.009 PR-AUC over raw). **The quantum walk does not beat
+   classical propagation of the same risk** (0.805 vs 0.808-0.812). Chirality and potential wells add
+   ~0.000-0.002, within noise.
+2. **The ceiling is temporal drift, not graph information.** XGBoost on raw features gets PR-AUC 0.96 on
+   timesteps 35-38 and 0.89 on 39-42, but 0.046 on 43-49 (after the dark-market shutdown; illicit rate 2.5%).
+   Giving the model half of the test-period labels lifts test PR-AUC from 0.80 to 0.96, and a random split inside the
+   training period scores 0.994. Any feature that does not address drift can move the aggregate score by
+   at most about 0.01-0.02.
