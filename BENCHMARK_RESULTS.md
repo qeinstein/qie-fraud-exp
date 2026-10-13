@@ -210,3 +210,55 @@ PR-AUC, mean over 3 seeds (std in `result3.txt`; stds are often 0.03-0.28, so ma
 
 Above 1,200 nodes spectral features are rank-96 approximations (not "sub-second", and not equivalent
 to the dense regime); dispersion entropy is column-sampled above 2,048 nodes.
+
+---
+
+## Run 7 — Elliptic Bitcoin dataset (real data, `elliptic_benchmark.py`)
+
+203,769 transactions, 234,355 edges, 49 timesteps. Temporal split: train timesteps 1-34
+(29,894 labeled, 11.6% illicit), test 35-49 (16,670 labeled, 6.5% illicit). Test labels were never used
+for tuning, early stopping or thresholds. Every model got the same recipe: random hyper-parameter
+search (20 configs GBDT, 8 RF, 10 GNN) fitting on timesteps 1-27 and scoring PR-AUC on 28-34, then a
+refit on 1-34, F1 threshold chosen on validation, 5 seeds (mean +/- std). HQW features were computed
+per timestep graph (rank-192 spectrum, unweighted edges since Elliptic has no amounts) and fed to the
+*same* tuned learners as the baselines. Raw results: `results/elliptic_results.json`.
+
+| Model | PR-AUC | F1 | FPR@95Rec | PR-AUC (t>=43) |
+|:---|:---:|:---:|:---:|:---:|
+| XGBoost, local features (93) | 0.778 | 0.634 | 0.407 | 0.034 |
+| XGBoost, all features (165) | 0.803 | 0.783 | 0.335 | 0.045 |
+| XGBoost, structural stats only | 0.141 | 0.181 | 0.802 | 0.035 |
+| XGBoost, HQW features only | 0.117 | 0.122 | 0.860 | 0.079 |
+| XGBoost, raw + structural | 0.804 | 0.780 | 0.335 | 0.047 |
+| **XGBoost, raw + HQW** | 0.803 | 0.793 | 0.335 | 0.049 |
+| XGBoost, raw + HQW (gamma=0) | 0.803 | 0.772 | 0.333 | 0.048 |
+| XGBoost, raw + HQW wave | 0.798 | 0.774 | 0.374 | 0.043 |
+| XGBoost, raw + structural + HQW | 0.802 | 0.778 | 0.308 | 0.047 |
+| LightGBM, all features | 0.799 | 0.814 | 0.351 | 0.043 |
+| LightGBM, raw + structural | 0.800 | 0.819 | 0.349 | 0.044 |
+| LightGBM, raw + HQW | 0.803 | 0.783 | 0.334 | 0.049 |
+| LightGBM, raw + HQW wave | 0.795 | 0.791 | 0.417 | 0.047 |
+| Random Forest, all features | 0.794 | 0.820 | 0.384 | 0.047 |
+| Random Forest, raw + HQW | 0.793 | 0.823 | 0.395 | 0.045 |
+| GCN | 0.640 | 0.572 | 0.687 | 0.053 |
+| GraphSAGE | 0.722 | 0.648 | 0.349 | 0.052 |
+| GATv2 | 0.722 | 0.668 | 0.436 | 0.065 |
+
+(Stds are mostly 0.001-0.03; see the JSON.)
+
+### What the real-data results support
+1. **HQW-AML does not improve on tuned classical systems on Elliptic.** Adding HQW features to raw
+   features leaves PR-AUC unchanged (0.803 vs 0.803 XGBoost; 0.803 vs 0.799 LightGBM; 0.793 vs 0.794
+   RF). F1 moves by +-0.03 in either direction depending on the learner, within threshold noise.
+2. **Topology alone is weak on Elliptic**: HQW-only 0.117 and structural-only 0.141 PR-AUC. Elliptic's
+   shipped aggregated features already carry neighbourhood information, and its graphs are near-trees
+   (E ~ N) with little cycle/interference structure for a quantum walk to exploit.
+3. **The earlier synthetic-data conclusions do not transfer**: the quantum-vs-GCN gap seen in Run 6
+   reappears only in the sense that every tabular model, with or without HQW features, beats every GNN
+   (best GNN 0.722 vs 0.80). The chirality ablation (gamma=0) is indistinguishable on PR-AUC.
+4. **All models collapse after the dark-market shutdown (timesteps >= 43)**: PR-AUC 0.03-0.08, the
+   known concept-drift failure on this dataset. HQW-only has the highest (0.079) but with a std of
+   0.055, so no claim is made.
+5. Not evaluated: AMLSim / IBM AML (no public file available without an account), amount-weighted
+   edges (Elliptic has none), and a full-graph (non-per-timestep) HQW run. GNN searches were limited
+   to 10 configurations each.
