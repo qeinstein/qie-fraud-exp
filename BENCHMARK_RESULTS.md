@@ -294,3 +294,31 @@ folds) and from a train-only model on the test period; no test label is used. Sa
    Giving the model half of the test-period labels lifts test PR-AUC from 0.80 to 0.96, and a random split inside the
    training period scores 0.994. Any feature that does not address drift can move the aggregate score by
    at most about 0.01-0.02.
+
+---
+
+## Run 9 — Drift-robustness attempt: per-timestep normalization (Elliptic, `elliptic_drift.py`)
+
+Every feature rank-transformed (or z-scored) within its own timestep (unlabeled features only, no labels used),
+optionally combined with risk propagation and structural/HQW features. XGBoost, same tuning, 5 seeds.
+Raw results: `results/elliptic_drift_results.json`.
+
+| Feature set (XGBoost) | PR-AUC | F1 | PR-AUC (t>=43) |
+|:---|:---:|:---:|:---:|
+| raw (absolute, baseline) | **0.803** | **0.783** | 0.045 |
+| raw rank-per-timestep | 0.781 | 0.476 | 0.046 |
+| raw z-score-per-timestep | 0.755 | 0.423 | 0.051 |
+| rank raw + rank HQW topology | 0.780 | 0.599 | 0.041 |
+| rank HQW topology only | 0.130 | 0.143 | **0.023** |
+| rank structural only | 0.128 | 0.160 | **0.023** |
+| rank: raw + risk + quantum walk (v4) | 0.787 | 0.563 | 0.048 |
+| rank: raw + risk + classical propagation | 0.791 | 0.480 | 0.063 |
+
+### Findings
+1. **Per-timestep normalization hurts** (0.803 -> 0.78 rank, 0.755 z-score) and F1 collapses (0.78 -> 0.42-0.48),
+   because the validation-chosen threshold no longer transfers and absolute magnitudes carry signal; it does not
+   repair the post-shutdown collapse (t>=43 stays 0.04-0.06).
+2. **Topology-only features do not resist drift**: on t>=43 they score 0.023, at the 2.5% base rate (random). The earlier
+   HQW-only 0.079 +/- 0.055 in Run 7 was noise.
+3. Net: after two feature-side attempts (Run 8, Run 9) there is no evidence on Elliptic that quantum-walk features
+   improve on tuned classical models, and the post-shutdown collapse (t>=43) is not fixed by any feature set tried.

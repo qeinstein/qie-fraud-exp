@@ -25,8 +25,8 @@ STAGE1 = dict(n_estimators=300, max_depth=6, learning_rate=0.1, subsample=0.8, c
               min_child_weight=2, tree_method="hist", n_jobs=10)
 
 
-def stage1_risk(data, masks, seed=0):
-    raw, y, t = data.features, data.labels, data.timesteps
+def stage1_risk(data, masks, seed=0, X=None):
+    raw, y, t = (data.features if X is None else X), data.labels, data.timesteps
     train_lab = masks["train"]
     pos_ratio = float((y[train_lab] == 0).sum() / (y[train_lab] == 1).sum())
     params = dict(STAGE1, scale_pos_weight=float(np.sqrt(pos_ratio)), random_state=seed)
@@ -41,7 +41,7 @@ def stage1_risk(data, masks, seed=0):
     return risk
 
 
-def build_sets(data, risk):
+def build_sets(data, risk, X=None):
     def per_ts(fn):
         out = None
         for ts in range(1, 50):
@@ -61,7 +61,7 @@ def build_sets(data, risk):
     nbr = per_ts(neighbour_risk_features)
     print(f"propagation features built in {time.time() - t0:.0f}s", flush=True)
 
-    raw, r = data.features, risk[:, None].astype(np.float32)
+    raw, r = (data.features if X is None else X), risk[:, None].astype(np.float32)
     return {
         "raw": raw,
         "raw+risk (stacking only)": np.hstack([raw, r]),
